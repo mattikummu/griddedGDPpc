@@ -1,0 +1,12 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+data_gis/
+data_in/
+results/
+*.gpkg
+*.shp
+*.tif
+tmp/
+code_input_data.zip
