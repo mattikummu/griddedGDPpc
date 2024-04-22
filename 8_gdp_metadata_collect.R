@@ -377,7 +377,7 @@ plt_giniDataRangeYears <- tm_shape(sf_adm0_data, projection = "+proj=robin") +
     main.title.position = "center",
     legend.outside = TRUE,
     legend.outside.position = "right",
-    frame = FALSE)
+    frame = FALSE) 
 
 plt_dataOrigin <- tmap_arrange(plt_giniDataNmbrYears, plt_giniDataRangeYears, 
                                ncol = 1 )

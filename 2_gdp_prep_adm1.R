@@ -745,7 +745,7 @@ myFun_gdpAdm1_interp <- function(variableName = 'gdp') {
   
   temp <- adm1_data_gdp_ratio %>% 
     filter(is.na(GID_nmbr))
-  
+   
   # interpolate ratio
   adm1_data_SHDI_interpRatio <- adm1_data_gdp_ratio %>% 
     select(iso3, GID_nmbr, year, ratioAdm1Adm0) %>% 

@@ -260,7 +260,7 @@ validation_gdp <- ggscatter(tl3_polyg_comb_rast_oecd, x = "corrOECD_gdpAdm2", y 
                               xlab = "Observed Value", ylab = "Downscaled Value") + 
   geom_abline(intercept = 0, slope = 1) 
 
-
+ 
 
 if (!dir.exists('figures/')) {
   dir.create('figures/')

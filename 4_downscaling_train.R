@@ -54,7 +54,7 @@ r_popCount_1990_99[subset(r_popCount_1990_99,10) == 0] <- r_popCount_2000
 r_popCount_mod <- c(r_popCount_1990_99, subset(r_popCount,11:31))
 
 r_urbanisation <- rast('data_gis/urbanisationCntryWise_19jul2023.tif')
-
+ 
 sf_CntryUrbRate <- read.csv("data_gis/urbRateNational.csv") %>% 
   as_tibble() %>% 
   select(-c(X, Country, cntry_code, GADM_code)) %>% 

@@ -179,7 +179,7 @@ gdpTot_2020_5arcmin_round_zero2NA_robin <- terra::project(gdpTot_2020_5arcmin_ro
 
 p_gdp_total <- raster2map_v2(gdpTot_2020_5arcmin_round_zero2NA_robin,cntry50,gdp_pal,"GDP (PPP) million USD")
 
-
+ 
 if (!dir.exists('figures/')) {
   dir.create('figures/')
 }

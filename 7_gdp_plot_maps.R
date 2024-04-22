@@ -163,7 +163,7 @@ p_gdp <- tmap_arrange(p_gdp_pc_adm0, p_gdpSlope_adm0,
                       p_gdp_pc_adm2, p_gdpSlope_adm2,
                       ncol = 2)
 
-
+ 
 if (!dir.exists('figures/')) {
   dir.create('figures/')
 }

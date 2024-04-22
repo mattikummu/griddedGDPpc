@@ -772,7 +772,7 @@ myFun_gdp_data2raster <- function(inYears = 1990:1991,
   
   names(coll_raster) <- paste0(IndexName,'_',inYears[1]:inYears[length(inYears)])
   
-  terra::writeRaster(coll_raster,paste0('results/rast_adm2_gdpPerCapita_',inYears[1],'_',inYears[length(inYears)],'.tif'), 
+  terra::writeRaster(coll_raster,paste0('results/rast_adm2_gdp_pc_',inYears[1],'_',inYears[length(inYears)],'.tif'), 
                      gdal="COMPRESS=LZW",overwrite=TRUE)
   
   return(coll_raster)
@@ -953,12 +953,18 @@ myFun_gdp_data2gpkg <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
            paste0('results/polyg_adm2_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.gpkg'), 
            delete_dsn=T)
   
+  tempDataadm2_wTrend <- st_read("results/polyg_adm2_gdp_pc_1990_2022.gpkg") %>%
+    as_tibble()
+  
   # only csv
   temp <- tempDataadm2_wTrend %>% 
     st_drop_geometry() %>% 
-    select(-geom)
+    select(-geom) %>% 
+    mutate(across(X1990:X2022, round, 0))
   
-  write_csv(tempDataadm2_wTrend %>% st_drop_geometry(), "results/tabulated_adm2_gdp_perCapita.csv")
+  
+  write_csv(temp, paste0('results/tabulated_adm2_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.csv'))
+  
   
   # slope to raster
   
