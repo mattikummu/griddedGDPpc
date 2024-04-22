@@ -1,4 +1,4 @@
-# griddedGDPpc
+# Downscaled gridded global dataset for Gross Domestic Product (GDP) per capita at purchasing power parity (PPP) over 1990-2022
 
 These codes were used to create the 'Downscaled gridded global dataset for Gross Domestic Product (GDP) per capita at purchasing power parity (PPP) over 1990-2022' that is published in Kummu et al (2024). Please do cite this paper if using the codes. 
 
