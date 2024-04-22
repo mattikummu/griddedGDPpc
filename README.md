@@ -12,7 +12,9 @@ The code is numbered with the order it should be run. Below each code is briefly
 2_gdp_prep_adm1.R: puts together admin 1 level data, interpolates and extrapolates the missing values
 3_gdp_prep_spatial.R: combines the admin 0 and admin 1 level to a global grid and gpkg file
 4_downscaling_train.R: prepares the training data for downscaling model
+
 Downscaling_Matlab_Codes (under this folder, with own readme file): downscaling admin 1 level data to admin 2 level
+
 5_downscaling_predict.R: prepares the data for downscaling prediction to admin 2 level
 6_gdpTotal.R: estimates the total GDP PPP, using admin 2 level GDP per capita (from 5_downscaling_predict.R) and population count data
 7_gdp_plot_maps.R: script to plot maps shown in the manuscript
