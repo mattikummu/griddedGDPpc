@@ -24,12 +24,12 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 ### load data
 
-sf_gdp_adm0 <- read_sf('results/polyg_gdp_pc_adm0_1990_2022.gpkg') %>% 
+sf_gdp_adm0 <- read_sf('results/polyg_adm0_gdp_pc_1990_2022.gpkg') %>% 
   mutate(slope = slope*32) %>% 
   # remove antarctica
   filter(!iso3 == 'ATA')
 
-sf_gdp_adm1 <- read_sf('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg') %>% 
+sf_gdp_adm1 <- read_sf('results/polyg_adm1_gdp_pc_1990_2022.gpkg') %>% 
   mutate(slope = slope*32) %>% 
   # remove antarctica
   filter(!iso3 == 'ATA')
@@ -47,7 +47,7 @@ sf_adm0 <- read_sf("/Users/mkummu/R/GIS_data_common/ne_50m_adm0_all_ids/adm0_Nat
   st_as_sf() %>%
   filter(!iso_a3 == 'ATA')
 
-r_gdp_pc_2022 <- subset(rast('results/rast_adm2_gdpPerCapita_1990_2022.tif'), 33)
+r_gdp_pc_2022 <- subset(rast('results/rast_adm2_gdp_pc_1990_2022.tif'), 33)
 
 writeRaster(x = r_gdp_pc_2022,
             filename = "results/r_gdp_pc_2022.tif", gdal="COMPRESS=LZW",overwrite=T)

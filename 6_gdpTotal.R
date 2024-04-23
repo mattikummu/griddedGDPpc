@@ -58,7 +58,7 @@ file.ghsPop <- list.files(path=path_ghgPop,
 
 r_popCount1990_2020_30arcsec <- rast(paste0(path_ghgPop,as.matrix(file.ghsPop)))
 
-r_gdpPerCap <- rast("results/rast_adm2_gdpPerCapita_1990_2022.tif")
+r_gdpPerCap <- rast("results/rast_adm2_gdp_pc_1990_2022.tif")
 
 
 ##### calculate gdp tot -----
@@ -76,7 +76,7 @@ gdpTot_2020_30arcsec_round <- round(gdpTot_2020_30arcsec)
 terra::units(gdpTot_2020_30arcsec_round) <- 'GDP (PPP) in USD (2017 int. dollars)'
 
 writeRaster(x = gdpTot_2020_30arcsec_round,
-            filename = "results/rast_gdpTot_1990_2020_30arcsec.tif", gdal="COMPRESS=LZW",overwrite=T)
+            filename = "results/rast_gdp_tot_1990_2020_30arcsec.tif", gdal="COMPRESS=LZW",overwrite=T)
 
 
 
@@ -90,7 +90,7 @@ terra::units(gdpTot_1990_2020_5arcmin) <- 'GDP (PPP) in USD (2017 int. dollars)'
 gdpTot_1990_2020_5arcmin_round <- round(gdpTot_1990_2020_5arcmin)
 
 writeRaster(x = gdpTot_1990_2020_5arcmin_round,
-            filename = "results/rast_gdpTot_1990_2020_5arcmin.tif", gdal="COMPRESS=LZW",overwrite=T)
+            filename = "results/rast_gdp_tot_1990_2020_5arcmin.tif", gdal="COMPRESS=LZW",overwrite=T)
 
 
 
@@ -109,16 +109,16 @@ gdpPerCap_1990_2020_30arcmin <- gdpTot_1990_2020_30arcmin / pop_1990_2020_30arcm
 names(gdpPerCap_1990_2020_30arcmin) <- paste0('gdp_pc_',1990:2020)
 
 writeRaster(x = gdpTot_1990_2020_30arcmin,
-            filename = "results/rast_gdpTot_1990_2020_30arcmin.tif", gdal="COMPRESS=LZW",overwrite=T)
+            filename = "results/rast_gdp_tot_1990_2020_30arcmin.tif", gdal="COMPRESS=LZW",overwrite=T)
 
 writeRaster(x = gdpPerCap_1990_2020_30arcmin,
-            filename = "results/rast_gdpPerCap_1990_2020_30arcmin.tif", gdal="COMPRESS=LZW",overwrite=T)
+            filename = "results/rast_gdp_pc_1990_2020_30arcmin.tif", gdal="COMPRESS=LZW",overwrite=T)
 
 
 
 #### plot -----
 
-gdpTot_1990_2020_5arcmin_round <-  rast( "results/rast_gdpTot_1990_2020_5arcmin.tif" )
+gdpTot_1990_2020_5arcmin_round <-  rast( "results/rast_gdp_tot_1990_2020_5arcmin.tif" )
 
 cntry50 <- rnaturalearth::ne_download(scale=50, type="countries", category = "cultural") %>% 
   filter(!SOV_A3 == "ATA")

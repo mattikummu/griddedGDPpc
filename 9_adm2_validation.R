@@ -82,7 +82,7 @@ write_csv(adm2_oecd_wide_ratio, "data_in/adm2_oecd_wide_ratio.csv")
 
 ##### extract data from adm2 raster
 
-rast_gdpAdm2 <- rast('results/rast_adm2_gdpPerCapita_1990_2022.tif')
+rast_gdpAdm2 <- rast('results/rast_adm2_gdp_pc_1990_2022.tif')
 
 r_popCount <- rast('data_gis/popRaster_1990_2020.tif')
 
@@ -145,7 +145,7 @@ count_adm0_oecd <- sf_oecd_tl3_noGeom %>%
   group_by(iso3) %>%
   summarise(iso3count = n())
     
-count_adm0_rast <- st_read('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg') %>% 
+count_adm0_rast <- st_read('results/polyg_adm1_gdp_pc_1990_2022.gpkg') %>% 
   as_tibble() %>% 
   group_by(iso3) %>%
   summarise(iso3count = n()) %>% 

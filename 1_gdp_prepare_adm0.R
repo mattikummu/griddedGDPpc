@@ -707,20 +707,23 @@ myFun_gdp_data2gpkg <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     right_join(gdp_adm0_polyg_simpl) %>% 
     left_join(gdp_adm0_polyg_noGeom) %>% 
     select(GID_nmbr, iso3,  Country, slope, everything()) %>% 
-    select(-c(estimate, p.value))
+    select(-c(estimate, p.value)) %>% 
+    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
   
   
   
   st_write(tempDataAdm0_wTrend,paste0('results/polyg_adm0_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.gpkg'), delete_dsn=T)
   
-  # tempDataAdm0_wTrend <- st_read("results/polyg_gdp_pc_adm0_1990_2022.gpkg") %>% 
-  #   as_tibble()
+  # tempDataAdm0_wTrend <- st_read("results/polyg_adm0_gdp_pc_1990_2022.gpkg") %>%
+  #   as_tibble()  %>% 
+  #   mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
+  
   
   # only csv
   temp <- tempDataAdm0_wTrend %>% 
     st_drop_geometry() %>% 
     select(-geom) %>% 
-    mutate(across(X1990:X2022, round, 0))
+    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
     
   
   write_csv(temp, paste0('results/tabulated_adm0_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.csv'))

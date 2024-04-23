@@ -35,8 +35,8 @@ cntry_info <- read_csv("data_in/cntry_ids.csv") %>%
   mutate(iso3 = ifelse(iso3 == 'XNC','ZNC',iso3)) %>%  
   distinct(iso3, .keep_all = T)
 
-v_subnat_gis_combined <- vect("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
-sf_subnat_gis_combined <- read_sf("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
+v_subnat_gis_combined <- vect("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
+sf_subnat_gis_combined <- read_sf("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
 # 
 # temp_sf_subnat_gis_combined <- sf_subnat_gis_combined %>% 
 #   st_drop_geometry()
@@ -137,10 +137,10 @@ if (file.exists('results/ext_data.RData')){
   # sf_gdpUnits <- st_read('results/polyg_gdp_1990_2021.gpkg') %>% 
   #   mutate(GID_nmbr = paste0('GID',as.character(GID_nmbr)))
   
-  sf_gdpUnits <- st_read('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg') %>% 
+  sf_gdpUnits <- st_read('results/polyg_adm1_gdp_pc_1990_2022.gpkg') %>% 
     mutate(GID_nmbr = as.character(GID_nmbr))
   
-  v_gdpUnits <- vect('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg')
+  v_gdpUnits <- vect('results/polyg_adm1_gdp_pc_1990_2022.gpkg')
   
   r_adm1adm0comb_1arcmin <- rasterize(v_gdpUnits, rast(ncol=360*60, nrow=180*60), field = 'GID_nmbr')
   r_adm1adm0comb_5arcmin <- terra::aggregate(r_adm1adm0comb_1arcmin,fact=5,fun=modal,na.rm=T)
@@ -791,18 +791,18 @@ for (iVar in 1:length(varNames)) {
 
 #### for GBR, the admin 1 data is more accurate; let's use that ----
 
-rast_adm2 <- rast("results/rast_adm2_gdpPerCapita_1990_2022.tif")
-rast_adm1 <- rast("results/rast_adm1_gdp_perCapita_1990_2022.tif")
+rast_adm2 <- rast("results/rast_adm2_gdp_pc_1990_2022.tif")
+rast_adm1 <- rast("results/rast_adm1_gdp_pc_1990_2022.tif")
 rast_adm0_admin <- rast("data_gis/gdp_adm0_raster_5arcmin.tif")
 
 rast_adm2[rast_adm0_admin == 67] <- rast_adm1
 
-writeRaster(rast_adm2,"results/rast_adm2_gdpPerCapita_1990_2022.tif",gdal="COMPRESS=LZW",overwrite=TRUE)
+writeRaster(rast_adm2,"results/rast_adm2_gdp_pc_1990_2022.tif",gdal="COMPRESS=LZW",overwrite=TRUE)
 
 ### calculate adm2 - cntry ratio
 
-adm0gdp_pc <- rast('results/rast_gdp_pc_adm0_1990_2022.tif')
-adm2gdp_pc <- rast('results/rast_adm2_gdpPerCapita_1990_2022.tif')
+adm0gdp_pc <- rast('results/rast_adm0_gdp_pc_1990_2022.tif')
+adm2gdp_pc <- rast('results/rast_adm2_gdp_pc_1990_2022.tif')
 
 ratioGdp_pc <- adm2gdp_pc/adm0gdp_pc
 
@@ -947,20 +947,22 @@ myFun_gdp_data2gpkg <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     right_join(gdp_adm2_polyg_simpl) %>% 
     left_join(gdp_adm2_polyg_noGeom) %>% 
     select(GID_2, adm2ID, iso3, NAME_2, slope, everything()) %>% 
-    select(-c(estimate, p.value))
+    select(-c(estimate, p.value))  %>% 
+    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
   
   st_write(tempDataadm2_wTrend,
            paste0('results/polyg_adm2_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.gpkg'), 
            delete_dsn=T)
   
-  tempDataadm2_wTrend <- st_read("results/polyg_adm2_gdp_pc_1990_2022.gpkg") %>%
-    as_tibble()
-  
+  # tempDataadm2_wTrend <- st_read("results/polyg_adm2_gdp_pc_1990_2022.gpkg") %>%
+  #   as_tibble() %>% 
+  #   mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
+
   # only csv
   temp <- tempDataadm2_wTrend %>% 
     st_drop_geometry() %>% 
     select(-geom) %>% 
-    mutate(across(X1990:X2022, round, 0))
+    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
   
   
   write_csv(temp, paste0('results/tabulated_adm2_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.csv'))
@@ -1006,7 +1008,7 @@ poly_gdp <- myFun_gdp_data2gpkg(inYears = 1990:2022,
 #### for GBR, the admin 1 data is more accurate; let's use that ----
 
 v_adm2 <- read_sf("results/polyg_adm2_gdp_pc_1990_2022.gpkg")
-v_adm1 <- read_sf("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
+v_adm1 <- read_sf("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
 
 v_adm1_uk <- v_adm1 %>% 
   filter(iso3 == "GBR") %>% 

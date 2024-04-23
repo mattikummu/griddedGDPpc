@@ -184,7 +184,7 @@ if (file.exists('data_gis/gdp_Adm0Adm1_raster_5arcmin_feb2024.tif')){
   #create ref raster
   ref_raster_5arcmin <- raster::raster(ncol=360*12, nrow=180*12)
   ref_raster_1arcmin <- raster::raster(ncol=360*60, nrow=180*60)
-
+  
   # rasterise to 1 arc min resolutions
   
   # make valid
@@ -322,7 +322,7 @@ if (file.exists('data_gis/gdp_Adm0Adm1_polyg_simple.gpkg')){
   writeVector(p, 'data_gis/gdp_Adm0Adm1_polyg_simple.gpkg', overwrite=T)
   
   gdp_adm0adm1_polyg_simpl <- st_read('data_gis/gdp_Adm0Adm1_polyg_simple.gpkg') #%>% 
-    #rename(GID_nmbr = layer)
+  #rename(GID_nmbr = layer)
   
   # gdp_adm0adm1_polyg_simpl <- st_as_sf(raster::raster(r_gdp_adm0adm1_polyg_5arcmin))  %>% 
   # 
@@ -435,7 +435,8 @@ myFun_gdp_data2gpkg <- function(inYears = 1990:2022, IndexName = 'gdp',
     right_join(gdp_adm0adm1_polyg_simpl) %>% 
     left_join(gdp_adm0adm1_polyg_noGeom) %>% 
     select(GID_nmbr, iso3,  Country, Subnat, slope, everything()) %>% 
-    select(-c(estimate, p.value))
+    select(-c(estimate, p.value))%>% 
+    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
   
   # temp <- tempDataAdm0Adm1_wTrend %>%
   #   dplyr::group_by(GID_nmbr, year) %>%
@@ -444,14 +445,15 @@ myFun_gdp_data2gpkg <- function(inYears = 1990:2022, IndexName = 'gdp',
   
   st_write(tempDataAdm0Adm1_wTrend,paste0('results/polyg_adm1_',IndexName,'_pc_',inYears[1],'_',inYears[length(inYears)],'.gpkg'), delete_dsn=T)
   
-  # tempDataAdm0Adm1_wTrend <- st_read("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg") %>%
-  #   as_tibble()
-  
+  # tempDataAdm0Adm1_wTrend <- st_read("results/polyg_adm1_gdp_pc_1990_2022.gpkg") %>%
+  #   as_tibble() %>%
+  #   mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
+  # 
   # only csv
   temp <- tempDataAdm0Adm1_wTrend %>% 
     st_drop_geometry() %>% 
     select(-geom) %>% 
-    mutate(across(X1990:X2022, round, 0))
+    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
   
   
   write_csv(temp, paste0('results/tabulated_adm1_',IndexName,'_pc_',inYears[1],'_',inYears[length(inYears)],'.csv'))

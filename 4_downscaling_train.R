@@ -24,8 +24,8 @@ cntryID <- read_csv("data_in/countries_codes_and_coordinates.csv") %>%
   mutate(iso2 = ifelse(Country == 'Namibia','NB',iso2)) %>% 
   distinct(iso3, .keep_all = T)
 
-v_subnat_gis_combined <- vect("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
-sf_subnat_gis_combined <- read_sf("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
+v_subnat_gis_combined <- vect("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
+sf_subnat_gis_combined <- read_sf("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
 
 df_adm0_data <- read_csv("results/adm0_gdp_pc_long_interpExtrap.csv")
 
@@ -118,7 +118,7 @@ if (file.exists('results/ext_data_adm1_mar2024.RData')){
   
   r_urbanisation <- rast('/Users/mkummu/R/misc/percentileNormalisation/output/urbanisationCntryWise_19jul2023.tif')
   
-  # gini coefficient data can be acquired from matti.kummu@aalto.fi
+  # gini coefficient data can be requested from matti.kummu@aalto.fi
   r_gini <- rast('/Users/mkummu/R/gini/results/rast_gini_disp_1990_2021.tif')
   
   # travel time data is available from 
