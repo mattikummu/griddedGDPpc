@@ -29,11 +29,15 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
 #  adm0 origin
-adm0_source_comb <- read_csv('results/adm0_source_comb.csv')
+adm0_source_comb <- read_csv('results/adm0_source_comb.csv') %>% 
+  mutate(source = ifelse(source == "WB", "WorldBank", source))
 
 count(adm0_source_comb, source)
 
 # add to metadata
+
+# gadm_410-levels.gpkg can be downloaded from 
+# https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 
 adm0_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_0') %>% 
   st_drop_geometry() %>% 
@@ -46,7 +50,9 @@ adm0_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  
 # will be correctly represented. Also Hong Kong and Macao will this way be there as
 # individual countries
 
-adm0_gadm_old <- read_sf('data_gis/gadm_level0.gpkg') %>% 
+# source: https://gadm.org/download_world36.html
+
+adm0_gadm_old <- read_sf('/Users/mkummu/R/GIS_data_common/gadm36_levels_gpkg/gadm36_levels.gpkg', layer = 'level0')  %>% 
   st_drop_geometry() %>% 
   rename(iso3 = GID_0) %>% 
   rename(COUNTRY = NAME_0) %>% 
@@ -279,14 +285,21 @@ adm1_metaData <- adm0_reported_years_ranges %>%
   rename(YearRanges0 = YearRanges) %>% 
   left_join(adm1_reported_years_ranges) %>% 
   left_join(split_expanded_data_sel) %>% 
-  mutate(Source_1 = ifelse(is.na(YearRanges1), NA, 'historical')) %>% 
+  mutate(Source_1 = ifelse(is.na(YearRanges1), NA, 'Gennaioli et al (2013)')) %>% 
   mutate(Source_2 = ifelse(is.na(YearRanges2), NA, Source_2),
          WWW_2 = ifelse(is.na(YearRanges2), NA, WWW_2),
          Notes_2 = ifelse(is.na(YearRanges2), NA, Notes_2)) %>% 
   select(iso3, COUNTRY, YearRanges0, adm0_source, YearRanges, YearRanges1, Source_1, 
          YearRanges2, Source_2, WWW_2, Notes_2, YearRanges3, Source_3, WWW_3, Notes_3)
 
-write_csv(adm1_metaData, 'results/adm1_metaData_feb2024.csv')
+namesMeta <- names(adm1_metaData)
+
+names(adm1_metaData) <- c("iso3","COUNTRY","adm0_year_range","adm0_source","adm1_all_year_range",
+                          "adm1_source1_year_range","adm1_source_1",
+                          "adm1_source2_year_range","adm1_source_2", "adm1_WWW_2", "adm1_notes_2", 
+                          "adm1_source3_year_range","adm1_source_3","adm1_WWW_3","adm1_notes_3")
+
+write_csv(adm1_metaData, 'results/adm1_metaData.csv')
 
 
 
@@ -311,8 +324,8 @@ sf_adm0 <- read_sf("/Users/mkummu/R/GIS_data_common/ne_50m_adm0_all_ids/adm0_Nat
   filter(!iso_a3 == 'ATA')
 
 sf_adm1 <- read_sf('results/gisData_GDP_pc_combined_feb2024.gpkg') 
-  # simplify the shapefile
-  #rmapshaper::ms_simplify(keep = 0.05, keep_shapes = T) 
+# simplify the shapefile
+#rmapshaper::ms_simplify(keep = 0.05, keep_shapes = T) 
 
 
 sf_dataReported <- read_sf('results/gisData_GDP_pc_combined_feb2024.gpkg') %>% 
@@ -331,7 +344,7 @@ sf_dataReported_range <- read_sf('results/gisData_GDP_pc_combined_feb2024.gpkg')
   summarise(minYear = min(year), maxYear=max(year)) %>% 
   ungroup() %>% 
   mutate(rangeYear = as.numeric(maxYear) - as.numeric(minYear) + 1)
-  
+
 
 sf_adm0_data <- sf_adm0 %>% 
   select(iso_a3) %>%
@@ -339,7 +352,7 @@ sf_adm0_data <- sf_adm0 %>%
   left_join(sf_dataReported) %>% 
   
   left_join(sf_dataReported_range %>% distinct(iso3, .keep_all = T)) 
-  
+
 
 
 
