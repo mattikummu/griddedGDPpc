@@ -112,7 +112,7 @@ if (file.exists('results/ext_data.RData')){
   r_popCount_mod <- rast('data_gis/r_pop_GHS_1990_2022_5arcmin.tif')
   
   
-  r_urbanisation <- subset(rast('/Users/mkummu/R/misc/percentileNormalisation/output/urbanisationCntryWise_GHS2023a.tif'),1:33)
+  r_urbanisation <- subset(rast('data_gis/urbanisationCntryWise_GHS2023a.tif'),1:33)
   
   r_urbanisation_ext <- extend(r_urbanisation,ref_raster_5arcmin)
   ext(r_urbanisation_ext) <- ext(ref_raster_5arcmin)

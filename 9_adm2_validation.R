@@ -327,7 +327,7 @@ sf_adm0_comb_adm1$deviation <- sf_adm0_comb_adm1$gdp_pc_downscaled - sf_adm0_com
 sf_adm0_comb_adm1 <-  sf_adm0_comb_adm1 %>% 
   arrange(deviation)
 
-
+length(unique(sf_adm0_comb_adm1$iso3))
 
 
 # 3.4 for admin 2 level data
@@ -374,3 +374,4 @@ sf_adm0_comb_adm2$deviation <- sf_adm0_comb_adm2$gdp_pc_downscaled - sf_adm0_com
 sf_adm0_comb_adm2 <-  sf_adm0_comb_adm2 %>% 
   arrange(deviation)
 
+length(unique(sf_adm0_comb_adm2$iso3))

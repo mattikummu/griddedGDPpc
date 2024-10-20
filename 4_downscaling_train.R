@@ -59,9 +59,9 @@ terra::gdalCache(10000)
 # population data created in 2_gdp_prep_adm1.R
 r_popCount_mod <- rast('data_gis/r_pop_GHS_1990_2022_5arcmin.tif')
 
-r_urbanisation <- subset(rast('/Users/mkummu/R/misc/percentileNormalisation/output/urbanisationCntryWise_GHS2023a.tif'),1:33)
+r_urbanisation <- subset(rast('data_gis/urbanisationCntryWise_GHS2023a.tif'),1:33)
 
-sf_CntryUrbRate <- read.csv("/Users/mkummu/R/misc/percentileNormalisation/output/urbRateNational.csv") %>% 
+sf_CntryUrbRate <- read.csv("data_gis/urbRateNational.csv") %>% 
   as_tibble() %>% 
   select(-c(X, Country, cntry_code, GADM_code)) %>% 
   pivot_longer(-iso3, names_to = 'year', values_to = 'cntryUrbRatio') %>% 
