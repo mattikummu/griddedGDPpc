@@ -10,9 +10,11 @@ http://doi.org/10.5281/zenodo.10976734
 
 The code is numbered with the order it should be run. Below each code is briefly explained. We used R (version 4.3.2) to develop the code, except for downscaling which was done using Matlab (version 2023b). 
 
-**1_gdp_prepare_adm0.R**: puts together admin 0 level data, interpolates and extrapolates the missing values
+**0_install_packages.R**: install the needed packages
 
-**2_gdp_prep_adm1.R**: puts together admin 1 level data, interpolates and extrapolates the missing values
+**1_gdp_prepare_adm0.R**: puts together admin 0 level (national) data, interpolates and extrapolates the missing values
+
+**2_gdp_prep_adm1.R**: puts together admin 1 level (sbunational) data, interpolates and extrapolates the missing values
 
 **3_gdp_prep_spatial.R**: combines the admin 0 and admin 1 level to a global grid and gpkg file
 
@@ -29,6 +31,10 @@ The code is numbered with the order it should be run. Below each code is briefly
 **8_gdp_metadata_collect.R**: puts together the metadata for the study
 
 **9_adm2_validation.R**: validation of admin 2 level data
+
+**10_downscalingErrorToMap.R**: creates downscaling error map
+
+**11_storeFinalFiles.R**: store final files
 
 
 To run the code, please extract the folders in code_input_data.zip (available from http://doi.org/10.5281/zenodo.10976734) under the same folder with the code. 
