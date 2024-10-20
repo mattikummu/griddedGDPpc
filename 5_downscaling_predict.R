@@ -1,6 +1,10 @@
 
 
-### interpolating and extrapolating data
+### downscaling prediction
+
+# code for subnational GDP per capita dataset
+# creator: Matti Kummu, Aalto University (matti.kummu@aalto.fi)
+
 library(sf)
 library(terra)
 library(tidyterra)
@@ -16,14 +20,9 @@ library(dplyr)
 # set working directory the path that this script is located in
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
-#### load data -----
+terra::gdalCache(10000)
 
-# cntryID <- read_csv("data_in/countries_codes_and_coordinates.csv") %>% 
-#   dplyr::select(-cntry_code) %>% 
-#   rename(cntry_code = GADM_code) %>% # use GADM code instead of UN code
-#   select(cntry_code,iso2,iso3,Country) %>% 
-#   mutate(iso2 = ifelse(Country == 'Namibia','NB',iso2)) %>% 
-#   distinct(iso3, .keep_all = T)
+#### 1. load data -----
 
 # load cntry_info
 cntry_info <- read_csv("data_in/cntry_ids.csv") %>%
@@ -35,8 +34,8 @@ cntry_info <- read_csv("data_in/cntry_ids.csv") %>%
   mutate(iso3 = ifelse(iso3 == 'XNC','ZNC',iso3)) %>%  
   distinct(iso3, .keep_all = T)
 
-v_subnat_gis_combined <- vect("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
-sf_subnat_gis_combined <- read_sf("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
+v_subnat_gis_combined <- vect("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
+sf_subnat_gis_combined <- read_sf("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
 # 
 # temp_sf_subnat_gis_combined <- sf_subnat_gis_combined %>% 
 #   st_drop_geometry()
@@ -44,7 +43,7 @@ sf_subnat_gis_combined <- read_sf("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
 df_adm0_data <- read_csv("results/adm0_gdp_pc_long_interpExtrap.csv")
 
 
-#### create admin2 polygon layer -----
+#### 2. create admin2 polygon layer -----
 
 if (file.exists('results/adm2_polyg_comb.gpkg')){
   # load it
@@ -96,37 +95,28 @@ temp <- adm2_polyg_comb %>%
 
 
 
-##### get data for each adm2 unit -----
+##### 3. get data for each adm2 unit -----
 
 
 
 
-# extract data to adm2 boundaries
+# 3.1 extract data to adm2 boundaries
 
 if (file.exists('results/ext_data.RData')){
   # load it
   load('results/ext_data.RData') 
 } else { #create it
   
-   r_popCount <- rast('data_gis/popRaster_1990_2020.tif')
+  ref_raster_5arcmin <- rast(ncol=360*12, nrow=180*12)
   
-  # pop missing from some areas for 1990-1999; let's use year 2000 to fill those
+  r_popCount_mod <- rast('data_gis/r_pop_GHS_1990_2022_5arcmin.tif')
   
-  r_popCount_1990_99 <- subset(r_popCount, 1:10)
-  r_popCount_2000 <- subset(r_popCount, 11)
-  r_popCount_1990 <-  subset(r_popCount, 1)
   
-  r_popCount_1990[is.na(r_popCount_1990)] <- r_popCount_2000
+  r_urbanisation <- subset(rast('/Users/mkummu/R/misc/percentileNormalisation/output/urbanisationCntryWise_GHS2023a.tif'),1:33)
   
-  r_popCount_1990_99[is.na(subset(r_popCount_1990_99,10))] <- r_popCount_2000
-  r_popCount_1990_99[subset(r_popCount_1990_99,10) == 0] <- r_popCount_2000
+  r_urbanisation_ext <- extend(r_urbanisation,ref_raster_5arcmin)
+  ext(r_urbanisation_ext) <- ext(ref_raster_5arcmin)
   
-  r_popCount_mod <- c(r_popCount_1990_99, subset(r_popCount,11:31))
-  
-  # global(r_popCount_mod, sum, na.rm=T)
-  # global(r_popCount, sum, na.rm=T)
-  # 
-  r_urbanisation <- rast('data_gis/urbanisationCntryWise_19jul2023.tif')
   
   r_gini <- rast('/Users/mkummu/R/gini/results/rast_gini_disp_1990_2021.tif')
   
@@ -134,37 +124,45 @@ if (file.exists('results/ext_data.RData')){
   r_travelTime_crop <- aggregate(crop(r_travelTime,ext(subset(r_popCount_mod,1))), fact=10, fun='mean', na.rm=T)
   r_travelTime_crop <- extend(r_travelTime_crop, subset(r_popCount_mod,1))
   
-  # sf_gdpUnits <- st_read('results/polyg_gdp_1990_2021.gpkg') %>% 
-  #   mutate(GID_nmbr = paste0('GID',as.character(GID_nmbr)))
   
-  sf_gdpUnits <- st_read('results/polyg_adm1_gdp_pc_1990_2022.gpkg') %>% 
+  sf_gdpUnits <- st_read('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg') %>% 
     mutate(GID_nmbr = as.character(GID_nmbr))
   
-  v_gdpUnits <- vect('results/polyg_adm1_gdp_pc_1990_2022.gpkg')
+  v_gdpUnits <- vect('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg')
   
   r_adm1adm0comb_1arcmin <- rasterize(v_gdpUnits, rast(ncol=360*60, nrow=180*60), field = 'GID_nmbr')
   r_adm1adm0comb_5arcmin <- terra::aggregate(r_adm1adm0comb_1arcmin,fact=5,fun=modal,na.rm=T)
   
-  #r_adm1adm0comb <- as.factor(r_adm1adm0comb)
   
-  #v_adm2_polyg_comb <- vect(adm2_polyg_comb)
-  v_adm2_polyg_comb <- vect('results/adm2_polyg_comb.gpkg')
+  v_adm2_polyg_comb <- read_sf('results/adm2_polyg_comb.gpkg')
   
-  ext_pop_adm2 <- terra::extract(r_popCount_mod,v_adm2_polyg_comb, fun = sum, na.rm=T)
-  ext_urb_x_pop_adm2 <- terra::extract(r_popCount_mod*crop(r_urbanisation, ext(r_popCount_mod)),v_adm2_polyg_comb, fun = sum, na.rm=T)  
-  ext_gini_x_pop_adm2 <- terra::extract(c(r_popCount_mod,subset(r_popCount_mod,31))*
-                                          crop(r_gini, ext(r_popCount_mod)),v_adm2_polyg_comb, fun = sum, na.rm=T)
-  ext_travelTime_x_pop_adm2 <- terra::extract(r_popCount_mod*r_travelTime_crop,v_adm2_polyg_comb, fun = sum, na.rm=T)  
+  ## extract data to admin 2 units
   
-  ext_adm1units <- terra::extract(r_adm1adm0comb_5arcmin,v_adm2_polyg_comb, na.rm=T)  
+  ext_pop_adm2 <- exactextractr::exact_extract(r_popCount_mod,v_adm2_polyg_comb, 'sum')
+  
+  ext_urb_x_pop_adm2 <- exactextractr::exact_extract(r_popCount_mod*r_urbanisation_ext,
+                                                     v_adm2_polyg_comb, 'sum')  
+  ext_gini_x_pop_adm2 <- exactextractr::exact_extract(r_popCount_mod*
+                                                        c(r_gini, subset(r_gini,32)),
+                                                      v_adm2_polyg_comb, 'sum')
+  ext_travelTime_x_pop_adm2 <- exactextractr::exact_extract(r_popCount_mod*r_travelTime_crop,v_adm2_polyg_comb, 'sum')  
+  
+  ## extract data to admin 1 units
+  
+  ext_adm1units <- exactextractr::exact_extract(r_adm1adm0comb_5arcmin,v_adm2_polyg_comb, 'mode')  
   head(ext_adm1units)
   
   ext_adm1units_modal <- ext_adm1units %>% 
+    as_tibble() %>% 
+    mutate(ID = row_number()) %>% 
+    rename(GID_nmbr = value) %>% 
     group_by(ID) %>% 
     count(ID,GID_nmbr) %>%
     slice(which.max(n))
   
   head(ext_adm1units_modal)
+  
+  # save
   
   save(ext_pop_adm2, ext_urb_x_pop_adm2, ext_gini_x_pop_adm2,
        ext_travelTime_x_pop_adm2, ext_adm1units_modal, 
@@ -172,50 +170,22 @@ if (file.exists('results/ext_data.RData')){
 }
 
 
-## to long format
+## 3.2 to long format
 
 if (file.exists('results/adm2_polyg_comb_wData.csv')){
   # load it
-  adm2_polyg_comb_wData <- as_tibble(data.table::fread('results/adm2_polyg_comb_wData.csv') )
+  adm2_polyg_comb_wData_final <- as_tibble(data.table::fread('results/adm2_polyg_comb_wData.csv') )
 } else { #create it
   
-  # year 2021 = year 2020
-  ext_pop_adm2[,33] = ext_pop_adm2[,32]
   
   adm2_polyg_comb_pop <- adm2_polyg_comb %>% 
     st_drop_geometry() %>% 
     as_tibble() %>% 
     bind_cols(ext_pop_adm2) %>% 
-    select(-c(ID, iso3, NAME_2)) %>% 
-    set_names('GID_2',  paste0(1990:2021) ) %>% 
+    select(-c(iso3, NAME_2)) %>% 
+    set_names('GID_2',  paste0(1990:2022) ) %>% 
     pivot_longer(-c('GID_2'), names_to = 'year', values_to = 'pop') %>% 
     drop_na()
-  
-  
-  
-  
-  # # for some adm2 units population is missing for years 1990-1999 as no data in HYDE were available
-  # # let's use the population of 2000 for those
-  # 
-  # countNA <- adm2_polyg_comb_pop_temp %>%
-  #   mutate(pop = ifelse(pop == 0, NA, pop)) %>%
-  #   #mutate(pop = ifelse(is.nan(pop), NA, pop)) %>%
-  #   group_by(GID_2) %>% summarise(na_count = sum(is.na(pop))) %>%
-  #   # let's focus on thoe that are missing the first 10 years
-  #   filter(na_count > 5 & na_count < 15)
-  # 
-  # temp_pop_replaceNA <- adm2_polyg_comb_pop_temp %>%
-  #   filter(GID_2 %in% countNA$GID_2) %>%
-  #   group_by(GID_2) %>%
-  #   mutate(pop2000TF = ifelse(year == 2000, TRUE, FALSE)) %>%
-  #   mutate(pop2000 = pop[pop2000TF]) %>%
-  #   mutate(pop_mod = ifelse(is.na(pop) | pop == 0, pop2000, pop)) %>%
-  #   select(GID_2, year, pop_mod)
-  # 
-  # adm2_polyg_comb_pop <- adm2_polyg_comb_pop_temp %>%
-  #   left_join(temp_pop_replaceNA) %>%
-  #   mutate(pop = ifelse(is.na(pop) | pop == 0, pop_mod, pop)) %>%
-  #   select(-pop_mod)
   
   
   temp2 <- adm2_polyg_comb_pop %>% 
@@ -223,30 +193,18 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
   temp2
   
   
-  # update also the ext_pop_adm2
-  
-  # adm2_polyg_comb_pop_wide <- adm2_polyg_comb_pop %>% 
-  #   distinct(GID_2, year, .keep_all = T) %>% 
-  #   pivot_wider(names_from = 'year', values_from = 'pop')
-  # 
-  # ext_pop_adm2_mod <- adm2_polyg_comb %>% 
-  #   st_drop_geometry() %>% 
-  #   select(GID_2) %>% 
-  #   left_join(adm2_polyg_comb_pop_wide)
-  
   
   # urbanisation
   
   adm2_polyg_comb_urb <- adm2_polyg_comb %>% 
     st_drop_geometry() %>% 
     as_tibble() %>% 
-    bind_cols(ext_urb_x_pop_adm2 / ext_pop_adm2[,1:32]) %>% 
-    select(-c(ID, iso3, NAME_2)) %>% 
+    bind_cols(ext_urb_x_pop_adm2 / ext_pop_adm2) %>% 
+    select(-c(iso3, NAME_2)) %>% 
     # for year 2021, let's use year 2020
-    mutate(yr2021 = ppp_2020) %>% 
-    set_names('GID_2',  paste0(1990:2021) ) %>% 
+    #mutate(yr2021 = ppp_2020) %>% 
+    set_names('GID_2',  paste0(1990:2022) ) %>% 
     pivot_longer(-c('GID_2'), names_to = 'year', values_to = 'urb') #%>% 
-  #drop_na()
   
   # for some admin areas missing values; let's use the mean of the existing data for those
   
@@ -283,8 +241,8 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
     st_drop_geometry() %>% 
     as_tibble() %>% 
     bind_cols(ext_gini_x_pop_adm2 / ext_pop_adm2 )  %>% 
-    select(-c(ID, iso3, NAME_2)) %>% 
-    set_names('GID_2', paste0(1990:2021) ) %>% 
+    select(-c( iso3, NAME_2)) %>% 
+    set_names('GID_2', paste0(1990:2022) ) %>% 
     pivot_longer(-c('GID_2'), names_to = 'year', values_to = 'gini') %>% 
     drop_na()
   
@@ -298,11 +256,11 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
   adm2_polyg_comb_traveTime <- adm2_polyg_comb %>% 
     st_drop_geometry() %>% 
     as_tibble() %>% 
-    bind_cols(ext_travelTime_x_pop_adm2 / ext_pop_adm2[,1:32] ) %>% 
+    bind_cols(ext_travelTime_x_pop_adm2 / ext_pop_adm2) %>% 
     # for year 2021, let's use year 2020
-    mutate(yr2021 = ppp_2020) %>% 
-    select(-c(ID, iso3, NAME_2)) %>% 
-    set_names('GID_2', paste0(1990:2021) )%>% 
+    #mutate(yr2021 = ppp_2020) %>% 
+    select(-c(iso3, NAME_2)) %>% 
+    set_names('GID_2', paste0(1990:2022) )%>% 
     pivot_longer(-c('GID_2'), names_to = 'year', values_to = 'travelTime')%>% 
     drop_na()
   
@@ -326,9 +284,6 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
     distinct(GID_nmbr, GID_2, .keep_all = T)
   
   
-  
- 
-  
   temp2 <- adm2_polyg_comb_adm1unit %>% 
     filter(grepl('BRB.8',GID_2))
   temp2
@@ -346,6 +301,7 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
   temp2 <- adm2_polyg_comb_wData %>% 
     filter(grepl('BRB',GID_2))
   temp2
+  
   # Gini missing for some small island states; let's use 0.5 for them
   
   adm2_polyg_comb_wData <- adm2_polyg_comb_wData %>% 
@@ -367,6 +323,13 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
     #mutate(GID_nmbr = as.factor(GID_nmbr))%>% mutate(GID_nmbr = as.numeric(GID_nmbr)) %>% 
     distinct(GID_nmbr, year, .keep_all = T)
   
+  ## if gini == 0, put 0.5
+  
+  adm2_polyg_comb_wData <- adm2_polyg_comb_wData %>% 
+    mutate(gini = ifelse(gini == 0, 0.5, gini))
+  
+  # check some admin units
+  
   temp3 <- adm1_gdp_pc %>% 
     filter(GID_nmbr == 1105036)
   temp3
@@ -378,7 +341,7 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
     filter(GID_nmbr == 1105036)
   temp3
   
- 
+  
   temp2 <- adm2_polyg_comb_wData_adm1gdp %>% 
     filter(grepl('ALA',GID_2))
   temp2
@@ -387,9 +350,9 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
     filter(grepl('IND.36.19',GID_2))
   temp2
   
-  adm2_polyg_comb_wData <- adm2_polyg_comb_wData_adm1gdp
+  adm2_polyg_comb_wData_final <- adm2_polyg_comb_wData_adm1gdp
   
-  data.table::fwrite(adm2_polyg_comb_wData, 'results/adm2_polyg_comb_wData.csv')
+  data.table::fwrite(adm2_polyg_comb_wData_final, 'results/adm2_polyg_comb_wData.csv')
   
   
   
@@ -397,8 +360,7 @@ if (file.exists('results/adm2_polyg_comb_wData.csv')){
 
 
 
-## prepare file for downscaling in matlab
-
+## 4. prepare file for downscaling  ----
 
 
 if (file.exists('downscalingMatlab/adm2DataForDownscaling.csv')){
@@ -406,69 +368,83 @@ if (file.exists('downscalingMatlab/adm2DataForDownscaling.csv')){
 } else { #create it
   
   
-  adm1urb <- adm2_polyg_comb_wData %>% 
+  adm1urb <- adm2_polyg_comb_wData_final %>% 
     mutate(urb_x_pop = urb*pop) %>% 
     group_by(GID_nmbr, year) %>% 
     summarise(urbAdm1 = sum(urb_x_pop) / sum(pop) )
   
-  adm1travelTime <- adm2_polyg_comb_wData %>% 
+  adm1travelTime <- adm2_polyg_comb_wData_final %>% 
     mutate(TT_x_pop = travelTime*pop) %>% 
     group_by(GID_nmbr, year) %>% 
     summarise(travelTimeAdm1 = sum(TT_x_pop) / sum(pop))
   
   
   # 'urb','travelTime','adm0GDP','adm0urb','adm0gini'
-  adm2_polyg_comb_Matlab <- adm2_polyg_comb_wData %>% 
+  adm2_polyg_comb_Matlab <- adm2_polyg_comb_wData_final %>% 
     rename(adm0gini = gini) %>% 
     rename(adm0GDP = gdp_adm1) %>% 
     left_join(adm1urb) %>% 
     left_join(adm1travelTime) %>% 
     rename(adm0urb = urbAdm1) %>% 
     rename(adm0travelTime = travelTimeAdm1) %>% 
-    select('GID_2', 'GID_nmbr', 'year', 'urb','travelTime','adm0GDP','adm0urb','adm0gini', 'adm0travelTime')
+    select('iso3', 'GID_2', 'GID_nmbr', 'year', 'urb','travelTime','adm0GDP','adm0urb','adm0gini', 'adm0travelTime')
   
   temp2 <- adm2_polyg_comb_Matlab %>% 
-    filter(grepl('MYT',GID_2))
+    filter(grepl('FIN',GID_2))
   temp2
   
   test_na <- adm2_polyg_comb_Matlab %>% 
     filter(is.na(GID_nmbr))
   
+  # add regions
+  
+  cntryID_reg <- read_csv("data_in/countries_codes_and_coordinates_reg.csv") %>% 
+    dplyr::select(-cntry_code) %>% 
+    rename(cntry_code = GADM_code) %>% # use GADM code instead of UN code
+    #select(cntry_code,iso2,iso3,Country) %>% 
+    mutate(iso2 = ifelse(Country == 'Namibia','NB',iso2)) %>% 
+    distinct(iso3, .keep_all = T) %>% 
+    select(iso3, RegionID, RegName)
+  
+  
+  adm2_polyg_comb_Matlab_reg <- adm2_polyg_comb_Matlab %>% 
+    left_join(cntryID_reg)
+  
   data.table::fwrite(adm2_polyg_comb_Matlab, 'downscalingMatlab/adm2DataForDownscaling.csv')
   
 }
 
-# adm2_polyg_comb_Matlab_test <- adm2_polyg_comb_Matlab[100000:400000,]
-# 
-# write.csv(adm2_polyg_comb_Matlab_test, 'downscalingMatlab/adm2DataForDownscaling_test.csv')
 
 
-### run matlab script
+### 5. run matlab script -----
+
+# here the matlab scripts are executed
 
 
+#### 6. load downscaled GDP ratio -----
 
-#### load downscaled GDP ratio -----
-
+# 6.1 load the data resulted from matlab
 
 if (file.exists('results/adm2_gdp.csv')){
   # load it
   adm2_gdp <- as_tibble(data.table::fread('results/adm2_gdp.csv') )
 } else { #create it
   
-  downscaledGDPratio <- as_tibble(data.table::fread('/Users/mkummu/R/subnat_gdp_2023/downscalingMatlab/downsclaling_output.csv')) %>% 
+  downscaledGDPratio <- as_tibble(data.table::fread('downscalingMatlab/downsclaling_output.csv')) %>% 
     rename(Estimated.gdpratio = 'ENS_Prediction') %>% 
+    # no bias correctpion, use estimated gdp ratio for corrected_prediction
+    mutate(Corrected_Prediction = Estimated.gdpratio) %>% 
     rename(Corrected.Estimated.gdpratio = 'Corrected_Prediction') %>% 
     # na to 1
     mutate(Corrected.Estimated.gdpratio = ifelse(is.na(Corrected.Estimated.gdpratio), 1,
-                                                 Corrected.Estimated.gdpratio)) %>% 
-    mutate(year = as.character(year)) #%>% 
+                                                 Corrected.Estimated.gdpratio)) # %>% 
+  # mutate(year = as.character(year)) #%>% 
   # some negative values, let's add 10 to each
   # mutate(Corrected.Estimated.gdpratio = Corrected.Estimated.gdpratio + 10)
   
   
-  adm2_polyg_comb_Matlab_downScaled_noYear2022 <- adm2_polyg_comb_wData %>% 
+  adm2_polyg_comb_Matlab_downScaled_noYear2022 <- adm2_polyg_comb_wData_final %>% 
     select(iso3, GID_2, NAME_2, year, gdp_adm1, pop, GID_nmbr) %>% 
-    mutate(year = as.character(year)) %>% 
     left_join(downscaledGDPratio) %>% 
     select(iso3,  GID_2, NAME_2, year, gdp_adm1, GID_nmbr, Corrected.Estimated.gdpratio, pop) %>% 
     rename(gdpRatio = Corrected.Estimated.gdpratio) %>% 
@@ -487,9 +463,8 @@ if (file.exists('results/adm2_gdp.csv')){
     distinct(GID_nmbr, year, .keep_all = T) %>% 
     filter(year == 2022)
   
-  adm2_polyg_comb_Matlab_downScaled_2022 <- adm2_polyg_comb_wData %>% 
+  adm2_polyg_comb_Matlab_downScaled_2022 <- adm2_polyg_comb_wData_final %>% 
     select(iso3, GID_2, NAME_2, year, gdp_adm1, pop, GID_nmbr) %>% 
-    mutate(year = as.character(year)) %>% 
     left_join(downscaledGDPratio) %>% 
     select(iso3,  GID_2, NAME_2, year, gdp_adm1, GID_nmbr, Corrected.Estimated.gdpratio, pop) %>% 
     rename(gdpRatio = Corrected.Estimated.gdpratio) %>% 
@@ -497,13 +472,11 @@ if (file.exists('results/adm2_gdp.csv')){
     filter(year == 2021) %>% 
     mutate(year = 2022) %>% 
     select(-gdp_adm1) %>% 
-    left_join(adm1_gdp_pc %>% mutate(year = as.numeric(year))) %>% 
-    mutate(year = as.character(year)) 
+    left_join(adm1_gdp_pc %>% mutate(year = as.numeric(year)))
   
   # add to other data
   
   adm2_polyg_comb_Matlab_downScaled <- adm2_polyg_comb_Matlab_downScaled_noYear2022 %>% 
-    mutate(year = as.character(year)) %>% 
     bind_rows(adm2_polyg_comb_Matlab_downScaled_2022)  %>% 
     arrange(iso3, GID_2, year) %>% 
     mutate(gdp_adm2 = gdpRatio*gdp_adm1) %>% 
@@ -628,10 +601,10 @@ if (file.exists('results/adm2_gdp.csv')){
     bind_rows(BHS_data_adm1)%>% 
     bind_rows(SJM_data_adm1) %>% 
     bind_rows(GRL.2_1_data_adm1) 
-    
-    
-    
-    temp2 <- adm2_gdp %>% 
+  
+  
+  
+  temp2 <- adm2_gdp %>% 
     filter(grepl('BHS.2_1', GID_2))
   temp2
   
@@ -650,8 +623,9 @@ if (file.exists('results/adm2_gdp.csv')){
 # adm2_gdp_afg <- adm2_gdp %>% 
 #   filter(iso3 == 'FRA')
 
-##### to grid -----
+##### 7. to grid -----
 
+# 7.1 create raster
 
 if (file.exists('data_gis/gdp_Adm2_raster_5arcmin.tif')){
   # load it
@@ -695,10 +669,9 @@ if (file.exists('data_gis/gdp_Adm2_raster_5arcmin.tif')){
   
   # aggregate to 5 arc-min
   r_gdp_adm2_polyg_5arcmin <- terra::aggregate(r_gdp_adm2_polyg_1arcmin,fact=5,fun=modal,na.rm=T)
-  # unique(r_gdp_adm2_polyg_5arcmin)
+  
   
   # write raster
-  
   terra::writeRaster(r_gdp_adm2_polyg_5arcmin,'data_gis/gdp_Adm2_raster_5arcmin.tif', 
                      gdal="COMPRESS=LZW",overwrite=TRUE)
   
@@ -706,126 +679,199 @@ if (file.exists('data_gis/gdp_Adm2_raster_5arcmin.tif')){
 
 
 
-### put data to raster -----------------------------------------------------
+### 7.2 put data to raster 
+
+source('functions/f_gdp_data2raster_adm2.R')
+
+yearsIn = 1990:2022
+rast_gdp <- f_gdp_data2raster_adm2(inYears = yearsIn, 
+                                   IndexName = 'gdp_pc', 
+                                   inDataAdm2 = adm2_gdp) 
 
 
-myFun_gdp_data2raster <- function(inYears = 1990:1991, 
-                                  IndexName = 'gdp_pc', 
-                                  inDataAdm2 = adm2_gdp) {
-  
-  coll_raster = rast()
-  
-  rowNmb_adm2ID <- sf::read_sf('data_gis/adm2_polyg_comb_ID.gpkg' ) %>% 
-    st_drop_geometry() %>% 
-    select(adm2ID, rowNmb) %>% 
-    distinct(adm2ID, .keep_all = T)
-  
-  
-  tempDataAdm2 <- inDataAdm2 %>% 
-    select(-c(cntry_id, rowNumb,gdp_adm2, corrRatio)) %>% 
-    left_join(rowNmb_adm2ID) %>% 
-    rename(!!IndexName := gdp_adm2corr)# %>% 
-  #filter(!is.na(adm2ID)) 
-  
-  temp2 <- tempDataAdm2 %>% 
-    filter(grepl('SJM',GID_2))
-  temp2
-  
-  # get all ids
-  all_ids <- unique(r_gdp_adm2_polyg_5arcmin) %>% 
-    as_tibble() %>% 
-    drop_na()
-  
-  for (iYear in inYears) {
-    
-    tempDataAdm2_selYear <- tempDataAdm2 %>% 
-      filter(year == iYear)
-    
-    # check adm0 areas for which we do not have data, and put those to NA in the raster
-    idWithData <- tempDataAdm2_selYear %>% 
-      as_tibble() %>% 
-      filter(!is.na(gdp_pc)) %>% 
-      dplyr::select(rowNmb) %>% 
-      distinct()
-    
-    # get those ids we do not have data for
-    idNoData <- all_ids %>% 
-      filter(!rowNmb %in% idWithData$rowNmb)
-    
-    r_gdp_adm2_polyg_5arcmin_mod <- r_gdp_adm2_polyg_5arcmin
-    
-    # those areas that do not have data --> NA 
-    r_gdp_adm2_polyg_5arcmin_mod[r_gdp_adm2_polyg_5arcmin_mod %in% as.numeric(as.matrix(idNoData))] <- NA
-    
-    
-    temp_id <-  as.numeric(tempDataAdm2_selYear$rowNmb)
-    temp_v <- as.numeric(tempDataAdm2_selYear[[IndexName]])
-    
-    # reclassify
-    temp_raster <- classify(r_gdp_adm2_polyg_5arcmin_mod,
-                            cbind(temp_id, temp_v))
-    
-    # plot(temp_raster)
-    
-    terra::add(coll_raster) <- temp_raster
-  }
-  
-  names(coll_raster) <- paste0(IndexName,'_',inYears[1]:inYears[length(inYears)])
-  
-  terra::writeRaster(coll_raster,paste0('results/rast_adm2_gdp_pc_',inYears[1],'_',inYears[length(inYears)],'.tif'), 
-                     gdal="COMPRESS=LZW",overwrite=TRUE)
-  
-  return(coll_raster)
-}
 
-varNames <- c('gdp_pc' )
+### 8 check admin areas where number of admin units is higher in admin 1 data ----
 
-for (iVar in 1:length(varNames)) {
-  
-  rast_varName <- myFun_gdp_data2raster(inYears = 1990:2022, 
-                                        IndexName = varNames[iVar], 
-                                        inDataAdm2 = adm2_gdp) 
-  
-}
+# we use the reported data for those countries where adm2 level admin division
+# is equal or close to the one of reported
+
+count_adm1_polyg <- st_read('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg') %>% 
+  st_drop_geometry() %>% 
+  as_tibble() %>% 
+  group_by(iso3) %>%
+  summarise(iso3count = n()) %>% 
+  rename(iso3count_1 = iso3count)
 
 
-#### for GBR, the admin 1 data is more accurate; let's use that ----
+count_adm2_polyg <- sf::read_sf('data_gis/adm2_polyg_comb_ID.gpkg' ) %>% 
+  st_drop_geometry() %>% 
+  as_tibble() %>% 
+  group_by(iso3) %>%
+  summarise(iso3count = n()) %>% 
+  rename(iso3count_2 = iso3count)
 
-rast_adm2 <- rast("results/rast_adm2_gdp_pc_1990_2022.tif")
-rast_adm1 <- rast("results/rast_adm1_gdp_pc_1990_2022.tif")
+
+comp_count <- count_adm1_polyg %>% 
+  left_join(count_adm2_polyg) %>% 
+  mutate(countRatio = iso3count_2/iso3count_1) %>% 
+  filter(!iso3count_2 == 1) %>% 
+  filter(countRatio < 1.5) %>% 
+  left_join(cntry_info)
+
+# for those countries, where ratio of number of admin areas between adm 1 and adm2
+# is less than 1.5, let's use the admin 1 data for the final results
+
+rast_gdpAdm2 <- rast('results/rast_adm2_gdpPerCapita_1990_2022_unHarm.tif')
+rast_adm1 <- rast("results/rast_adm1_gdp_perCapita_1990_2022.tif")
 rast_adm0_admin <- rast("data_gis/gdp_adm0_raster_5arcmin.tif")
 
-rast_adm2[rast_adm0_admin == 67] <- rast_adm1
+rast_gdpAdm2[rast_adm0_admin %in% comp_count$cntry_id] <- rast_adm1
 
-writeRaster(rast_adm2,"results/rast_adm2_gdp_pc_1990_2022.tif",gdal="COMPRESS=LZW",overwrite=TRUE)
-
-### calculate adm2 - cntry ratio
-
-adm0gdp_pc <- rast('results/rast_adm0_gdp_pc_1990_2022.tif')
-adm2gdp_pc <- rast('results/rast_adm2_gdp_pc_1990_2022.tif')
-
-ratioGdp_pc <- adm2gdp_pc/adm0gdp_pc
-
-terra::writeRaster(ratioGdp_pc,'results/rast_gdp_ratio_Adm2Adm0_5arcmin.tif', 
-                   gdal="COMPRESS=LZW",overwrite=TRUE)
-
-
-## difference between gdp and gnic
-
-
-ratioGnic <- rast('/Users/mkummu/R/hdi_subnat/results/rast_gni_ratio_Adm2Adm0_5arcmin.tif')
-ratioGdp_pc <- rast('/Users/mkummu/R/subnat_gdp_2023/results/rast_gdp_ratio_Adm2Adm0_5arcmin.tif')
-
-diffGnicGdp <- ratioGnic-ratioGdp_pc
-
-terra::writeRaster(diffGnicGdp,'/Users/mkummu/R/subnat_gdp_2023/results/rast_diff_GnicGdp_ratio_5arcmin.tif', 
-                   gdal="COMPRESS=LZW",overwrite=TRUE)
+#writeRaster(rast_adm2,"results/rast_adm2_gdpPerCapita_1990_2022.tif",gdal="COMPRESS=LZW",overwrite=TRUE)
 
 
 
 
+#### 9. harmonise against reported adm1 level values ----
 
-### simplify polygon layer ----
+
+sf_adm0 <- read_sf('data_gis/gdp_Adm0Adm1_polyg_simple.gpkg')
+sf_adm1_info <- read_sf('results/polyg_adm1_gdp_perCapita_1990_2022.gpkg') %>% 
+  st_drop_geometry()
+
+r_popCount_mod_ext <- rast('data_gis/r_pop_GHS_1990_2022_5arcmin.tif')
+
+
+#### 9.1 admin 1 level data, reported (from 1_gdp_prepare_adm0.R)
+
+adm0_comb_interpExtrap <- read_csv('results/tabulated_gdp_perCapita.csv') %>% 
+  select(-Country, -Subnat, -slope) %>% 
+  pivot_longer(-c(GID_nmbr, iso3), names_to = 'year', values_to = 'gdp')
+#rename(gdp = gdp_pc)
+
+### 9.2 national data, from downscaled raster
+
+adm0_polyg_final <- sf_adm0 %>% 
+  left_join(sf_adm1_info %>% 
+              select(Country, GID_nmbr, iso3) ) %>% 
+  # rename(GID_nmbr = cntry_id) %>% 
+  # rename(Country = country_name)) %>% 
+  filter(!is.na(GID_nmbr)) %>% 
+  select(Country, GID_nmbr, iso3)
+
+
+
+# rast_adm0_polyg_final <- terra::rasterize(adm0_polyg_final, y = subset(rast_gdpAdm2,1), field = 'GID_nmbr')
+
+
+
+## 9.3 extract
+
+# adm2
+ext_gdp_x_pop_adm1 <- exactextractr::exact_extract(rast_gdpAdm2*r_popCount_mod_ext,adm0_polyg_final, fun='sum' )
+dim(ext_gdp_x_pop_adm1)
+
+# pop
+ext_pop <- exactextractr::exact_extract(x= r_popCount_mod_ext,y=adm0_polyg_final, fun='sum')
+dim(ext_pop)
+
+
+# 9.4 weighted average from adm1 raster data, and then calculate ratio between that and reported GDP
+
+sf_adm0_comb_adm1_ratio <- adm0_polyg_final %>%
+  bind_cols(ext_gdp_x_pop_adm1 / ext_pop) %>%
+  st_drop_geometry() %>% 
+  #select(-c(ID)) %>%
+  set_names('Country', 'GID_nmbr', 'iso3', paste0(yearsIn) ) %>%
+  as_tibble() %>%
+  pivot_longer(-c('Country', 'GID_nmbr', 'iso3'), names_to = 'year', values_to = 'gdp_pc_raster') %>%
+  mutate(year = as.numeric(year)) %>% 
+  distinct(GID_nmbr, year, .keep_all = T) %>%
+  mutate(GID_nmbr = as.numeric(GID_nmbr)) %>% 
+  left_join(adm0_comb_interpExtrap %>% mutate(year = as.numeric(year)) %>% 
+              distinct(GID_nmbr, year, .keep_all = T)  %>% 
+              mutate(GID_nmbr = as.numeric(GID_nmbr))) %>%
+  # calculate ratio
+  mutate(ratio = gdp_pc_raster / gdp) %>% 
+  # if ratio is 0 or NA, let's use 1
+  mutate(ratio = ifelse(is.na(ratio), 1, ratio )) %>% 
+  mutate(ratio = ifelse(ratio == 0, 1, ratio )) 
+
+## 9.5 to map
+
+r_gdp_adm0_polyg_5arcmin <- rast('data_gis/gdp_Adm0Adm1_raster_5arcmin_feb2024.tif')
+
+ratioRaster = rast()
+
+for (iYear in yearsIn) {
+  
+  tempData_selYear <- sf_adm0_comb_adm1_ratio %>% 
+    filter(year == iYear)
+  
+  temp_id <-  as.numeric(tempData_selYear$GID_nmbr)
+  temp_v <- as.numeric(tempData_selYear$ratio)
+  
+  # reclassify
+  temp_raster <- classify(r_gdp_adm0_polyg_5arcmin,
+                          cbind(temp_id, temp_v))
+  
+  #plot(temp_raster)
+  
+  terra::add(ratioRaster) <- temp_raster
+}
+
+# 9.6 calculate final raster
+
+finalRaster <- (rast_gdpAdm2 / ratioRaster)
+
+### harmonisation did not work, for some reason, for Bahamas - let's use national values for it
+
+rast_gdpAdm0 <- rast("results/rast_adm0_gdp_perCapita_1990_2022.tif")
+rast_adm0_admin <- rast("data_gis/gdp_adm0_raster_5arcmin.tif")
+
+finalRaster[rast_adm0_admin == 21] <- rast_gdpAdm0
+
+
+
+terra::writeRaster(finalRaster,paste0('results/rast_adm2_','gdp','_perCapita','_',yearsIn[1],'_',yearsIn[length(yearsIn)],
+                                      '.tif'), gdal="COMPRESS=LZW",overwrite=TRUE)
+
+
+## xxx. some optional code ----
+
+# 
+# 
+# 
+# 
+# ### calculate adm2 - cntry ratio
+# 
+# adm0gdp_pc <- rast('results/rast_adm0_gdp_perCapita_1990_2022.tif')
+# adm2gdp_pc <- rast('results/rast_adm2_gdp_PerCapita_1990_2022.tif')
+# 
+# ratioGdp_pc <- adm2gdp_pc/adm0gdp_pc
+# 
+# terra::writeRaster(ratioGdp_pc,'results/rast_gdp_ratio_Adm2Adm0_5arcmin.tif', 
+#                    gdal="COMPRESS=LZW",overwrite=TRUE)
+# 
+# # 
+# # ## difference between gdp and gnic
+# # 
+# # 
+# # ratioGnic <- rast('/Users/mkummu/R/hdi_subnat/results/rast_gni_ratio_Adm2Adm0_5arcmin.tif')
+# # ratioGdp_pc <- rast('/Users/mkummu/R/subnat_gdp_2023/results/rast_gdp_ratio_Adm2Adm0_5arcmin.tif')
+# # 
+# # diffGnicGdp <- ratioGnic-ratioGdp_pc
+# # 
+# # terra::writeRaster(diffGnicGdp,'/Users/mkummu/R/subnat_gdp_2023/results/rast_diff_GnicGdp_ratio_5arcmin.tif', 
+# #                    gdal="COMPRESS=LZW",overwrite=TRUE)
+# 
+
+
+
+
+### 10. put data to polygons  ----
+
+# 10.1 create simplified polygon layer
 
 if (file.exists('data_gis/adm2_polyg_comb_5arcmin_simple.gpkg')){
   # load it
@@ -854,182 +900,70 @@ if (file.exists('data_gis/adm2_polyg_comb_5arcmin_simple.gpkg')){
 
 
 
-#### put data to gpkg (and slope to raster) -----
+#### 10.2 put data to gpkg (and slope to raster) 
 
 adm2_count <- adm2_gdp %>% 
   distinct(adm2ID)
 
 
-myFun_gdp_data2gpkg <- function(inYears = 1990:2022, IndexName = 'gdp_pc', 
-                                inDataAdm2 = adm2_gdp) {
-  
-  
-  rowNmb_adm2ID <- sf::read_sf('data_gis/adm2_polyg_comb_ID.gpkg' ) %>% 
-    st_drop_geometry() %>% 
-    select(adm2ID, rowNmb) %>% 
-    distinct(adm2ID, .keep_all = T)
-  
-  
-  tempDataAdm2 <- inDataAdm2 %>% 
-    select(-c(cntry_id, rowNumb,gdp_adm2, corrRatio)) %>% 
-    left_join(rowNmb_adm2ID) %>% 
-    rename(!!IndexName := gdp_adm2corr) 
-  #filter(!is.na(adm2ID)) 
-  
-  
-  # calculate trend
-  
-  # https://stackoverflow.com/questions/72922288/group-wise-linear-models-function-nest-by
-  
-  
-  test_tempDataAdm2_trend <- tempDataAdm2 %>% 
-    #filter(GID_nmbr == 226)  %>% 
-    as_tibble() %>% 
-    group_by(adm2ID) %>% 
-    mutate(time = row_number()) %>% 
-    mutate(n = n()) %>% 
-    ungroup() %>% 
-    filter(gdp_pc < 0)
-  
-  
-  
-  tempDataAdm2_trend <- tempDataAdm2 %>% 
-    drop_na() %>% 
-    #filter(GID_nmbr == 226)  %>% 
-    as_tibble() %>% 
-    group_by(adm2ID) %>% 
-    mutate(time = row_number()) %>% 
-    ungroup() %>% 
-    select(-year) %>% 
-    mutate(log10_gdp_pc = log10(gdp_pc)) %>% 
-    nest(data = -adm2ID) %>% 
-    mutate(
-      model = map(data,  ~ mblm::mblm(log10_gdp_pc ~ time, data = .))
-    ) %>% 
-    mutate(
-      tidy_summary = map(model, tidy)
-    ) %>% 
-    unnest(tidy_summary) %>% 
-    filter(term == 'time') %>% 
-    select(adm2ID, estimate, p.value)
-  
-  
-  
-  
-  # # https://stackoverflow.com/questions/32274779/extracting-p-values-from-multiple-linear-regression-lm-inside-of-a-ddply-funct
-  # 
-  # tempDataadm2_trend <- tempDataadm2 %>% 
-  #   group_by(GID_nmbr) %>% 
-  #   #nest() %>% 
-  #   do({model = lm(gnic~year, data=.)    # create your model
-  #   data.frame(tidy(model),              # get coefficient info
-  #              glance(model))})   %>% 
-  #   filter(term == 'year')
-  
-  gdp_adm2_polyg_noGeom <- adm2_polyg_comb %>%
-    st_drop_geometry() %>% 
-    select(iso3, GID_2, NAME_2)
-  
-  tempDataadm2_dublicates <- tempDataAdm2 %>% 
-    select(GID_2, year, as.name(!!IndexName), adm2ID, rowNmb) %>% 
+# 10.2.1 harmonise adm 2 data
 
-    dplyr::group_by(GID_2, adm2ID, rowNmb, year) %>%
-    dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
-    dplyr::filter(n > 1L) 
+# 
+# adm2_gdp_harm <- adm2_gdp %>% 
+#   left_join(sf_adm0_comb_adm1_ratio %>% select(GID_nmbr,year, ratio) %>% 
+#               rename(ratio_harm = ratio)) %>% 
+#   mutate(gdp_adm2corr = gdp_adm2corr/ratio_harm) %>% 
+#   select(-ratio_harm)
   
-  tempDataadm2_wTrend <- tempDataAdm2 %>% 
-    select(GID_2, year, as.name(!!IndexName), adm2ID, rowNmb) %>% 
-    
-    pivot_wider(names_from = 'year', values_from = as.name(!!IndexName)) %>% 
-    left_join(tempDataAdm2_trend) %>% 
-    mutate(p.value = p.value < 0.05) %>% 
-    mutate(slope = p.value * estimate) %>% 
-    right_join(gdp_adm2_polyg_simpl) %>% 
-    left_join(gdp_adm2_polyg_noGeom) %>% 
-    select(GID_2, adm2ID, iso3, NAME_2, slope, everything()) %>% 
-    select(-c(estimate, p.value))  %>% 
-    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
-  
-  st_write(tempDataadm2_wTrend,
-           paste0('results/polyg_adm2_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.gpkg'), 
-           delete_dsn=T)
-  
-  # tempDataadm2_wTrend <- st_read("results/polyg_adm2_gdp_pc_1990_2022.gpkg") %>%
-  #   as_tibble() %>% 
-  #   mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
-
-  # only csv
-  temp <- tempDataadm2_wTrend %>% 
-    st_drop_geometry() %>% 
-    select(-geom) %>% 
-    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
-  
-  
-  write_csv(temp, paste0('results/tabulated_adm2_',IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.csv'))
-  
-  
-  # slope to raster
-  
-  
-  # check adm0 areas for which we do not have data, and put those to NA in the raster
-  idNoData <- tempDataAdm2 %>% 
-    as_tibble() %>% 
-    filter(is.na(gdp_pc)) %>% 
-    dplyr::select(adm2ID)
-  
-  r_gdp_adm2_polyg_5arcmin[r_gdp_adm2_polyg_5arcmin %in% as.numeric(as.matrix(idNoData))] <- NA
-  
-  
-  temp_id <-  as.numeric(tempDataadm2_wTrend$rowNmb)
-  temp_v <- as.numeric(tempDataadm2_wTrend$slope)
-  
-  # reclassify
-  slope_raster <- classify(r_gdp_adm2_polyg_5arcmin,
-                           cbind(temp_id, temp_v))
-  
-  names(slope_raster) <- paste0(IndexName,'_slope_',inYears[1],'_',inYears[length(inYears)] )
-  
-  #plot(slope_raster)
-  
-  terra::writeRaster(slope_raster,paste0('results/rast_adm2_slope_log10', IndexName,'_',inYears[1],'_',inYears[length(inYears)],'.tif'), 
-                     gdal="COMPRESS=LZW",overwrite=TRUE)
-  
-  
-}
+ext_gdp_adm2 <- exactextractr::exact_extract( finalRaster,gdp_adm2_polyg_simpl,'mode')
 
 
-poly_gdp <- myFun_gdp_data2gpkg(inYears = 1990:2022, 
-                                IndexName = 'gdp_pc', 
-                                inDataAdm2 = adm2_gdp) 
+
+# 10.2.2 apply the function to
+
+source('functions/f_gdp_data2gpkg_adm2.R')
+
+poly_gdp <- f_gdp_data2gpkg_adm2(inYears = 1990:2022, 
+                                 IndexName = 'gdp_pc', 
+                                 inDataAdm2 = adm2_gdp) 
 
 
 
 
-#### for GBR, the admin 1 data is more accurate; let's use that ----
 
-v_adm2 <- read_sf("results/polyg_adm2_gdp_pc_1990_2022.gpkg")
-v_adm1 <- read_sf("results/polyg_adm1_gdp_pc_1990_2022.gpkg")
+### 10.3 check admin areas where number of admin units is equal or higher in admin 1 data ----
 
-v_adm1_uk <- v_adm1 %>% 
-  filter(iso3 == "GBR") %>% 
+# done above (comp_count )
+
+# for those countries, where ratio of number of admin areas between adm 1 and adm2
+# is less than 1.5, let's use the admin 1 data for the final results
+
+
+v_adm2 <- read_sf("results/polyg_adm2_gdp_perCapita_1990_2022.gpkg")
+v_adm1 <- read_sf("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
+
+v_adm1_sel <- v_adm1 %>% 
+  filter(iso3 %in% comp_count$iso3 | iso3 == "BHS") %>% 
   rename(NAME_2 = Subnat) %>% 
   rename(adm2ID = GID_nmbr) %>% 
   select(-Country)
 
-v_adm2_uk <- v_adm2 %>% 
-  filter(!iso3 == "GBR") %>% 
-  bind_rows(v_adm1_uk) %>% 
+omit_iso3 <- unique(v_adm1_sel$iso3)
+
+v_adm2_final <- v_adm2 %>% 
+  filter(!iso3 %in% omit_iso3) %>% 
+  bind_rows(v_adm1_sel) %>% 
   arrange(iso3, adm2ID)
 
-st_write(v_adm2_uk,"results/polyg_adm2_gdp_pc_1990_2022.gpkg",delete_dsn=T)
 
 
+temp <- v_adm2_final %>% 
+  st_drop_geometry() 
 
-v_adm1_adm0 <- v_adm1 %>% 
-  filter(GID_nmbr > 1000) %>% 
-  distinct(iso3)
+write_csv(temp, "results/tabulated_adm2_gdp_perCapita.csv")
 
-v_adm1_adm1 <- v_adm1 %>% 
-  filter(GID_nmbr > 1000) %>% 
-  distinct(GID_nmbr)
+
+st_write(v_adm2_final,"results/polyg_adm2_gdp_perCapita_1990_2022.gpkg",delete_dsn=T)
+
+
 

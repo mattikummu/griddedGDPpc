@@ -2,8 +2,10 @@
 
 ### metadata for the GDP dataset
 
+# code for subnational GDP per capita dataset
+# creator: Matti Kummu, Aalto University (matti.kummu@aalto.fi)
 
-#library(raster)
+
 library(terra)
 library(sf)
 
@@ -26,18 +28,13 @@ library(tidyverse)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
+#### 1. load data -----
 
-
-#  adm0 origin
-adm0_source_comb <- read_csv('results/adm0_source_comb.csv') %>% 
-  mutate(source = ifelse(source == "WB", "WorldBank", source))
+adm0_source_comb <- read_csv('results/adm0_source_comb.csv')
 
 count(adm0_source_comb, source)
 
 # add to metadata
-
-# gadm_410-levels.gpkg can be downloaded from 
-# https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 
 adm0_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_0') %>% 
   st_drop_geometry() %>% 
@@ -50,9 +47,7 @@ adm0_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  
 # will be correctly represented. Also Hong Kong and Macao will this way be there as
 # individual countries
 
-# source: https://gadm.org/download_world36.html
-
-adm0_gadm_old <- read_sf('/Users/mkummu/R/GIS_data_common/gadm36_levels_gpkg/gadm36_levels.gpkg', layer = 'level0')  %>% 
+adm0_gadm_old <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/gadm_level0.gpkg') %>% 
   st_drop_geometry() %>% 
   rename(iso3 = GID_0) %>% 
   rename(COUNTRY = NAME_0) %>% 
@@ -85,8 +80,9 @@ mariaMeta <- read_excel('data_in/MARIA_metadata_updated_mk.xlsx', sheet = 'Metad
   rename(WWW_2 = WWW) %>% 
   rename(Notes_2 = Notes)
 
+### 2. prepare metadata ----
 
-# aavilable years for each country
+# 2.1 available years for each country
 
 adm0_reported_years <- read_csv('results/adm0_reported_data.csv') %>% 
   pivot_longer(-iso3, names_to = 'year', values_to = 'gdp_pc') %>% 
@@ -95,7 +91,7 @@ adm0_reported_years <- read_csv('results/adm0_reported_data.csv') %>%
   group_by(iso3) %>%
   summarize(Years = paste(year, collapse = ", ")) 
 
-# aavilable years for each subnat area
+# 2.2 aavilable years for each subnat area
 
 
 adm1_reported_years <- read_csv( "results/subnat_gis_combined_feb2024.csv") %>% 
@@ -116,58 +112,23 @@ uniqueSubnat <- adm1_reported_data %>%
   select(GID_nmbr) %>% 
   distinct()
 
-# Function to create year ranges
-create_year_ranges_3 <- function(years) {
-  if (is.na(years)) {
-    return(NA)
-  }
-  
-  years <- as.numeric(strsplit(years, ", ")[[1]])
-  ranges <- character(0)
-  
-  if (length(years) == 1) {
-    return(as.character(years))
-  }
-  
-  start <- years[1]
-  for (i in 2:length(years)) {
-    if (years[i] != years[i - 1] + 1) {
-      if (start != years[i - 1]) {
-        ranges <- c(ranges, paste(start, years[i - 1], sep = "-"))
-      } else {
-        ranges <- c(ranges, as.character(start))
-      }
-      start <- years[i]
-    }
-  }
-  
-  if (start != years[length(years)]) {
-    ranges <- c(ranges, paste(start, years[length(years)], sep = "-"))
-  } else {
-    ranges <- c(ranges, as.character(start))
-  }
-  
-  return(paste(ranges, collapse = ", "))
-}
+# 2.3 use function to create year ranges
+
+source('functions/f_create_year_ranges.R')
 
 
 # Apply the function using mutate
 
-
-
 adm0_reported_years_ranges <- adm0_reported_years %>%
-  mutate(YearRanges = sapply(Years, create_year_ranges_3)) %>% 
+  mutate(YearRanges = sapply(Years, f_create_year_ranges)) %>% 
   select(-Years) %>% 
   mutate(iso3 = ifelse(iso3 == "WBG", 'PSE', iso3)) %>% 
   # source
   left_join(adm0_GADM_corr)  %>% 
   select(iso3, COUNTRY, YearRanges, adm0_source)
 
-
-
-
 adm1_reported_years_ranges <- adm1_reported_years %>%
-  mutate(YearRanges = sapply(Years, create_year_ranges_3)) %>% 
+  mutate(YearRanges = sapply(Years, f_create_year_ranges)) %>% 
   select(-Years) %>% 
   # add Maria's metadata
   left_join(mariaMeta) %>% 
@@ -181,75 +142,23 @@ temp_sample <- adm1_reported_years_ranges %>%
 names(temp_sample) <- c('iso3', 'years1', 'years2', 'years3')
 
 
-
-
 # Function to expand year ranges
-expand_year_range <- function(year_range) {
-  ranges <- strsplit(year_range, ", ")
-  expanded_years <- character(0)
-  
-  for (range in ranges) {
-    range_parts <- strsplit(range, "-")
-    if (length(range_parts[[1]]) == 2) {
-      start <- as.numeric(range_parts[[1]][1])
-      end <- as.numeric(range_parts[[1]][2])
-      expanded_years <- c(expanded_years, as.character(start:end))
-    } else {
-      expanded_years <- c(expanded_years, as.character(range_parts[[1]]))
-    }
-  }
-  
-  return(expanded_years)
-}
+source('functions/f_expand_year_range.R')
+
 
 # Function to create year ranges from lists
-create_year_ranges_from_lists <- function(years_list) {
-  ranges_list <- list()
-  
-  for (years in years_list) {
-    years <- as.numeric(years)
-    ranges <- character(0)
-    
-    if (length(years) == 1) {
-      ranges <- as.character(years)
-    } else {
-      start <- years[1]
-      for (i in 2:length(years)) {
-        if (years[i] != years[i - 1] + 1) {
-          if (start != years[i - 1]) {
-            ranges <- c(ranges, paste(start, years[i - 1], sep = "-"))
-          } else {
-            ranges <- c(ranges, as.character(start))
-          }
-          start <- years[i]
-        }
-      }
-      
-      if (start != years[length(years)]) {
-        ranges <- c(ranges, paste(start, years[length(years)], sep = "-"))
-      } else {
-        ranges <- c(ranges, as.character(start))
-      }
-    }
-    
-    ranges_list <- append(ranges_list, list(paste(ranges, collapse = ", ")))
-  }
-  
-  return(ranges_list)
-}
+source('functions/f_create_year_ranges_from_lists.R')
+
+
 # Expand year ranges into individual years for each column
 expanded_data <- temp_sample %>%
   mutate(
-    years1_expanded = lapply(str_split(years1, ", "), expand_year_range),
-    years2_expanded = lapply(str_split(years2, ", "), expand_year_range),
-    years3_expanded = lapply(str_split(years3, ", "), expand_year_range)
+    years1_expanded = lapply(str_split(years1, ", "), f_expand_year_range),
+    years2_expanded = lapply(str_split(years2, ", "), f_expand_year_range),
+    years3_expanded = lapply(str_split(years3, ", "), f_expand_year_range)
   ) %>%
   select(-years1, -years2, -years3) #%>%
-# mutate(
-#   years1_expanded = sapply(years1_expanded, paste, collapse = ", "),
-#   years2_expanded = sapply(years2_expanded, paste, collapse = ", "),
-#   years3_expanded = sapply(years3_expanded, paste, collapse = ", ")
-# )
+
 
 # Print the result
 print(expanded_data)
@@ -260,10 +169,10 @@ split_expanded_data <- expanded_data %>%
   mutate(
     years_in_both_1_2 = list(intersect(years2_expanded, years1_expanded)),
     years_in_both_but_not_in_years3 = list(setdiff(years_in_both_1_2, years3_expanded)),
-    #year_ranges_2 = list(create_year_ranges_from_lists(years_in_both_but_not_in_years3)),
+    #year_ranges_2 = list(f_create_year_ranges_from_lists(years_in_both_but_not_in_years3)),
     years_in_both_2_3 = list(union(years_in_both_but_not_in_years3, years3_expanded)),
     years_only_in_years1 = list(setdiff(years1_expanded, years_in_both_2_3)),
-    #year_ranges_1 = list(create_year_ranges_from_lists(years_only_in_years1))
+    #year_ranges_1 = list(f_create_year_ranges_from_lists(years_only_in_years1))
   )
 
 split_expanded_data_sel <- split_expanded_data %>% 
@@ -274,9 +183,9 @@ split_expanded_data_sel <- split_expanded_data %>%
   mutate(years_in_years1_str = ifelse(years_in_years1_str == "", NA, years_in_years1_str),
          years_in_years2_str = ifelse(years_in_years2_str == "", NA, years_in_years2_str),
          years_in_years3_str = ifelse(years_in_years3_str == "", NA, years_in_years3_str)) %>% 
-  mutate(YearRanges1 = sapply(years_in_years1_str, create_year_ranges_3),
-         YearRanges2 = sapply(years_in_years2_str, create_year_ranges_3),
-         YearRanges3 = sapply(years_in_years3_str, create_year_ranges_3)) %>% 
+  mutate(YearRanges1 = sapply(years_in_years1_str, f_create_year_ranges),
+         YearRanges2 = sapply(years_in_years2_str, f_create_year_ranges),
+         YearRanges3 = sapply(years_in_years3_str, f_create_year_ranges)) %>% 
   select(iso3,YearRanges1,YearRanges2,YearRanges3)
 
 
@@ -285,37 +194,28 @@ adm1_metaData <- adm0_reported_years_ranges %>%
   rename(YearRanges0 = YearRanges) %>% 
   left_join(adm1_reported_years_ranges) %>% 
   left_join(split_expanded_data_sel) %>% 
-  mutate(Source_1 = ifelse(is.na(YearRanges1), NA, 'Gennaioli et al (2013)')) %>% 
+  mutate(Source_1 = ifelse(is.na(YearRanges1), NA, 'historical')) %>% 
   mutate(Source_2 = ifelse(is.na(YearRanges2), NA, Source_2),
          WWW_2 = ifelse(is.na(YearRanges2), NA, WWW_2),
          Notes_2 = ifelse(is.na(YearRanges2), NA, Notes_2)) %>% 
   select(iso3, COUNTRY, YearRanges0, adm0_source, YearRanges, YearRanges1, Source_1, 
          YearRanges2, Source_2, WWW_2, Notes_2, YearRanges3, Source_3, WWW_3, Notes_3)
 
-namesMeta <- names(adm1_metaData)
-
-names(adm1_metaData) <- c("iso3","COUNTRY","adm0_year_range","adm0_source","adm1_all_year_range",
-                          "adm1_source1_year_range","adm1_source_1",
-                          "adm1_source2_year_range","adm1_source_2", "adm1_WWW_2", "adm1_notes_2", 
-                          "adm1_source3_year_range","adm1_source_3","adm1_WWW_3","adm1_notes_3")
-
-write_csv(adm1_metaData, 'results/adm1_metaData.csv')
+write_csv(adm1_metaData, 'results/adm1_metaData_feb2024.csv')
 
 
 
-#### number of observations for downscaling ----
+#### 3. number of observations for downscaling ----
 
-admAreasDownscaling <- read_csv("downscalingMatlab/adm1DataForDownscaling_mar2024.csv")
+admAreasDownscaling <- read_csv("downscalingMatlab/adm1DataForDownscaling.csv")
 
 nrow(admAreasDownscaling)
 
 
 
-## plot data origin ----
+## 4. plot data origin ----
 
-# collect data
-
-# source: https://www.naturalearthdata.com/downloads/
+# 4.1 collect data
 
 sf_adm0 <- read_sf("/Users/mkummu/R/GIS_data_common/ne_50m_adm0_all_ids/adm0_NatEarth_all_ids.shp") %>%
   # simplify the shapefile
@@ -337,8 +237,8 @@ sf_dataReported <- read_sf('results/gisData_GDP_pc_combined_feb2024.gpkg') %>%
 
 sf_dataReported_range <- read_sf('results/gisData_GDP_pc_combined_feb2024.gpkg') %>% 
   st_drop_geometry() %>% 
-  select(-c(Country, cntry_code, Subnat, GID_1)) %>% 
-  pivot_longer(-c('iso3','GID_nmbr'), names_to = 'year', values_to = 'gdo_pc') %>% 
+  select(-c(Country, cntry_id, Subnat, GID_1)) %>% 
+  pivot_longer(-c('iso3','GID_nmbr'), names_to = 'year', values_to = 'gdp_pc') %>% 
   drop_na() %>% 
   group_by(iso3) %>% 
   summarise(minYear = min(year), maxYear=max(year)) %>% 
@@ -346,18 +246,39 @@ sf_dataReported_range <- read_sf('results/gisData_GDP_pc_combined_feb2024.gpkg')
   mutate(rangeYear = as.numeric(maxYear) - as.numeric(minYear) + 1)
 
 
+sf_dataReported_meanInterval <- read_sf('results/gisData_GDP_pc_combined_feb2024.gpkg') %>% 
+  st_drop_geometry() %>% 
+  select(-c(Country, cntry_id, Subnat, GID_1)) %>% 
+  pivot_longer(-c('iso3','GID_nmbr'), names_to = 'year', values_to = 'gdp_pc') %>% 
+  mutate(year = as.numeric(year)) %>% 
+  filter(!is.na(gdp_pc)) %>%  # Filter rows where GDP is not NA
+  # filter(GID_nmbr == 1004001) %>% 
+  group_by(GID_nmbr) %>% 
+  arrange(GID_nmbr, year) %>%   # Ensure data is sorted by year
+  mutate(interval = year - lag(year)) %>%  # Calculate the interval
+  select(iso3,GID_nmbr, year, interval) %>% # %>%  # Select the relevant columns
+  reframe(intervalMean = mean(interval, na.rm = T), iso3 = iso3) %>% 
+  ungroup() %>% 
+  group_by(iso3) %>% 
+  reframe(intervalMean_iso3 = mean(intervalMean, na.rm = T) ) %>% 
+  ungroup()
+  
+summary(sf_dataReported_meanInterval$intervalMean_iso3)
+
 sf_adm0_data <- sf_adm0 %>% 
   select(iso_a3) %>%
   rename(iso3 = iso_a3) %>% 
   left_join(sf_dataReported) %>% 
   
-  left_join(sf_dataReported_range %>% distinct(iso3, .keep_all = T)) 
+  left_join(sf_dataReported_range %>% distinct(iso3, .keep_all = T))  %>% 
+  left_join(sf_dataReported_meanInterval %>% distinct(iso3, .keep_all = T)) 
 
 
-
+# 4.2 create plots 
 
 pal = scico(8, begin = 0.1, end = 0.9, direction = -1, palette = 'lajolla')
 breaksNmbr = c(0,2,5,10,15,20,25,Inf)
+breaksInterval = c(0,1.1,2,3,4,5,6,Inf)
 
 plt_giniDataNmbrYears <- tm_shape(sf_adm0_data, projection = "+proj=robin") +
   tm_fill(col = "nmbrObs",
@@ -390,17 +311,52 @@ plt_giniDataRangeYears <- tm_shape(sf_adm0_data, projection = "+proj=robin") +
     main.title.position = "center",
     legend.outside = TRUE,
     legend.outside.position = "right",
-    frame = FALSE) 
+    frame = FALSE)
 
-plt_dataOrigin <- tmap_arrange(plt_giniDataNmbrYears, plt_giniDataRangeYears, 
-                               ncol = 1 )
+plt_giniDataIntervalYears <- tm_shape(sf_adm0_data, projection = "+proj=robin") +
+  tm_fill(col = "intervalMean_iso3",
+          palette = pal,
+          breaks = breaksInterval,
+          #labels = birthDataOrigin,
+          #contrast = c(0, 0.9)
+  )+
+  tm_shape(sf_adm1, projection = "+proj=robin") +
+  tm_borders(col = "white",
+             lwd = 0.1)+
+  tm_layout(#main.title = "Origin of data",
+    main.title.position = "center",
+    legend.outside = TRUE,
+    legend.outside.position = "right",
+    frame = FALSE)
 
 
-if (!dir.exists('figures/')) {
-  dir.create('figures/')
+# 4.3 store plots 
+
+if (dir.exists('figures/figSource/')) {
+  
+} else {
+  dir.create('figures/figSource/')  
 }
 
-tmap_save(plt_dataOrigin,filename = "figures/plt_gdpDataRange.pdf", width = 130, height = 95, units = "mm")
+layers <- list(plt_giniDataNmbrYears,  plt_giniDataRangeYears, plt_giniDataIntervalYears)
+
+nameLayers <- c('plt_giniDataNmbrYears',  'plt_giniDataRangeYears', 'plt_giniDataIntervalYears')
+
+for (i in 1:length(layers)) {
+  
+  p_fig <- layers[[i]] + 
+    tm_layout(legend.show=FALSE)
+  
+  tmap_save(p_fig,filename = paste0('figures/figSource/fig_',nameLayers[i],'.png'),width = 400, units='mm', dpi = 600)
+  
+}
+
+
+
+plt_dataOrigin <- tmap_arrange(plt_giniDataNmbrYears, plt_giniDataRangeYears, plt_giniDataIntervalYears,
+                               ncol = 1 )
+
+tmap_save(plt_dataOrigin,filename = "figures/figSource/plt_gdpDataRange.pdf", width = 130, height = 130, units = "mm")
 
 
 

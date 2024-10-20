@@ -3,10 +3,12 @@
 .RData
 .Ruserdata
 data_gis/
-data_in/
 results/
 *.gpkg
 *.shp
 *.tif
+*.csv
+*.png
+*.pdf
 tmp/
-code_input_data.zip
+figures/

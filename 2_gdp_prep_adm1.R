@@ -1,6 +1,8 @@
-### processing subnational gini data
+### processing subnational data
 
-# creator: matti.kummu@aalto.fi
+# code for subnational GDP per capita dataset
+# creator: Matti Kummu, Aalto University (matti.kummu@aalto.fi)
+
 
 library(sf)
 library(terra)
@@ -17,14 +19,9 @@ library(dplyr)
 # set working directory the path that this script is located in
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
-#### load data -----
+#### 1. load general data -----
 
-cntryID <- read_csv("data_in/countries_codes_and_coordinates.csv") %>% 
-  dplyr::select(-cntry_code) %>% 
-  rename(cntry_code = GADM_code) %>% # use GADM code instead of UN code
-  select(cntry_code,iso2,iso3,Country) %>% 
-  mutate(iso2 = ifelse(Country == 'Namibia','NB',iso2)) %>% 
-  distinct(iso3, .keep_all = T)
+# 1.1 cntry info
 
 cntry_info <- read_csv("data_in/cntry_ids.csv") %>%
   as_tibble() %>% 
@@ -35,18 +32,29 @@ cntry_info <- read_csv("data_in/cntry_ids.csv") %>%
   mutate(iso3 = ifelse(iso3 == 'XNC','ZNC',iso3)) %>%  
   distinct(iso3, .keep_all = T)
 
+cntryID <- read_csv("data_in/countries_codes_and_coordinates.csv") %>% 
+  dplyr::select(-cntry_code) %>% 
+  rename(cntry_code = GADM_code) %>% # use GADM code instead of UN code
+  select(cntry_code,iso2,iso3,Country) %>% 
+  mutate(iso2 = ifelse(Country == 'Namibia','NB',iso2)) %>% 
+  distinct(iso3, .keep_all = T) %>% 
+  left_join(cntry_info %>% select(iso3, cntry_id)) %>% 
+  select(-cntry_code)
+
+# 1.2 subnational metadata
+
+cntryList_hist <-  read_excel('data_in/subnational_gdp_revised.xlsx', sheet = 'subnational', skip = 0) %>% 
+  distinct(ISO) %>% 
+  rename(iso3 = ISO) %>% 
+  # filter out countries for which we use different GIS unit than in previous version
+  filter(!iso3 %in% (updGIS %>% filter(!GIS == 'old') %>% select(iso3))$iso3)
 
 
-#### GDP adm1 data ----
+#### 2. process DOSE v2 data  ----
 
-
-
-
-#### pre-processing some data ----
-
-# from DOSE v2 
 # https://www.nature.com/articles/s41597-023-02323-8
-# data available in https://zenodo.org/records/7573249
+
+# 2.1 create function to process the data
 
 myFunDose <- function(iso3_name = 'KAZ'){ 
   
@@ -56,18 +64,12 @@ myFunDose <- function(iso3_name = 'KAZ'){
     pivot_wider(names_from = 'year', values_from = 'grp_pc_usd') %>% 
     arrange(region)
   
-  
-  if (!dir.exists('data_in/dose_v2_cntry/')) {
-    dir.create('data_in/dose_v2_cntry/')
-  }
-  
   write_csv(iso3_gdp_pc, paste0('data_in/dose_v2_cntry/',iso3_name,'_gdp_pc.csv'))
   
   return(iso3_gdp_pc)
-  }
+}
 
-
-
+# 2.2 apply function to different countries
 
 KAZ_gdp_pc <- myFunDose('KAZ')
 
@@ -109,12 +111,12 @@ egy_gdp_pc <- egy_tot_gdp %>%
   left_join(egy_pop) %>% 
   select(-Name) %>% 
   mutate(gdp_pc = (`Total Governorate GDP` * 10^3) / pop )
-  
+
 egy_gdp_pc_wider <- egy_gdp_pc %>% 
   select(-`Total Governorate GDP`, -pop) %>% 
   mutate(gdp_pc = round(gdp_pc) ) %>% 
   pivot_wider(names_from = Year, values_from = gdp_pc)  
-  
+
 
 unique_pop <- unique(egy_pop$Governorate)
 
@@ -137,28 +139,23 @@ NGA_gdp_pc <-  myFunDose('PRY') # income, not GDP per capita
 NGA_gdp_pc <-  myFunDose('ZAF')
 
 
-# updated GIS
+## the data were then manually entered to the xls
+
+
+
+### 3. process different datasets  ----
+
+#  updated GIS
 
 updGIS <- read_excel('data_in/updates_feb2024.xlsx', sheet = 'meta', skip = 2)
 
-checkData <- read_excel('data_in/updates_feb2024.xlsx', sheet = 'check', skip = 0)
+# checkData <- read_excel('data_in/updates_feb2024.xlsx', sheet = 'check', skip = 0)
 
 cntryList_data <-  read_excel('data_in/subnational_gdp_revised.xlsx', sheet = 'subnational', skip = 0) %>% 
   distinct(ISO) %>% 
   rename(iso3 = ISO) 
 
-
-
-### historical data ----
-
-cntryList_hist <-  read_excel('data_in/subnational_gdp_revised.xlsx', sheet = 'subnational', skip = 0) %>% 
-  distinct(ISO) %>% 
-  rename(iso3 = ISO) %>% 
-  # filter out countries for which we use different GIS unit than in previous version
-  filter(!iso3 %in% (updGIS %>% filter(!GIS == 'old') %>% select(iso3))$iso3)
-
-
-# read data
+# 3.1 historical data from earlier publication of Kummu et al-----
 
 adm1_hist <- read_excel('data_in/subnational_gdp_revised.xlsx', sheet = 'subnational', skip = 0) %>% 
   as_tibble() %>% 
@@ -170,7 +167,7 @@ adm1_hist <- read_excel('data_in/subnational_gdp_revised.xlsx', sheet = 'subnati
   left_join(cntryID,by='iso3') %>% 
   dplyr::filter(iso3 %in% cntryList_hist$iso3) %>% 
   arrange(iso3) %>% 
-  select(-c(Country.x, Country.y, cntry_code, iso2, paste0(1950:1984)))
+  select(-c(Country.x, Country.y, cntry_id, iso2, paste0(1950:1984)))
 
 # names(subnat_data) <- c('iso3','RegID','Subnat',as.character(1991:2021))
 
@@ -183,7 +180,7 @@ gis_hist <- read_sf( 'data_gis/reg_gdp_regions.gpkg' ) %>%
   select(-Country) %>% 
   left_join(adm1_hist[,1:3],by='RegID') %>% 
   left_join(cntryID,by='iso3') %>% 
-  select(iso3,cntry_code,RegID, Country) %>% 
+  select(iso3,cntry_id,RegID, Country) %>% 
   dplyr::filter(iso3 %in% id_subnat) %>% 
   arrange(iso3, RegID)
 
@@ -194,14 +191,16 @@ subnat_gis_data <- gis_hist %>%
   group_by(iso3) %>% 
   mutate(rowNmbr = row_number()) %>%  # for each subnat in a country a running number from 1...
   ungroup() %>% 
-  mutate(GID_nmbr = (1000+cntry_code)*1000+rowNmbr) %>% 
+  mutate(GID_nmbr = (1000+cntry_id)*1000+rowNmbr) %>% 
   select(-rowNmbr) %>%
-  select(Country,iso3,cntry_code,Subnat,GID_nmbr,as.character(1988:2021))
+  select(Country,iso3,cntry_id,Subnat,GID_nmbr,as.character(1988:2021))
 
 subnat_gis_data_hist <- subnat_gis_data
 subnat_data_hist <- adm1_hist
 
-#### GADM ----
+
+
+# 3.2 GADM ----
 
 cntryList_GADM <-  updGIS %>% 
   # filter out countries for which we use different GIS unit than in previous version
@@ -230,16 +229,13 @@ subnat_data[cols.num] <- sapply(subnat_data[cols.num],as.numeric)
 
 id_subnat <- unique(subnat_data$iso3)
 
-# gadm_410-levels.gpkg can be downloaded from 
-# https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
-
 gis_data_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_1') %>% 
   #st_drop_geometry() %>% 
   select(GID_0,COUNTRY,NAME_1,GID_1) %>% 
   rename(iso3 = GID_0) %>% 
   rename(Subnat = NAME_1) %>% 
   left_join(cntryID,by='iso3') %>% 
-  select(COUNTRY,iso3,cntry_code,GID_1)
+  select(COUNTRY,iso3,cntry_id,GID_1)
 
 # some of the adm1 levels are divided to those that are officially in a country and those that are 
 # on conflict zones (between CHN, IND and PAK)
@@ -247,15 +243,13 @@ gis_data_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg'
 # below is also code (commented out now) for another approach where we unite them with those that we have data for
 
 
-# source: https://gadm.org/download_world36.html
-
-adm1_gadm_old <- read_sf('/Users/mkummu/R/GIS_data_common/gadm36_levels_gpkg/gadm36_levels.gpkg', layer = 'level1') %>% 
+adm1_gadm_old <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/gadm_lev1.gpkg') %>% 
   #st_drop_geometry() %>% 
   rename(iso3 = GID_0) %>% 
   rename(COUNTRY = NAME_0) %>% 
   rename(Subnat = NAME_1) %>% 
   left_join(cntryID,by='iso3') %>% 
-  select(COUNTRY,iso3,cntry_code,GID_1) %>% 
+  select(COUNTRY,iso3,cntry_id,GID_1) %>% 
   filter(iso3 %in% c('CHN', 'PAK', 'IND'))
 
 adm1_polyg_comb <- gis_data_GADM %>% 
@@ -267,14 +261,14 @@ adm1_polyg_comb <- gis_data_GADM %>%
 gis_data_GADM_filt <- adm1_polyg_comb %>% 
   dplyr::filter(iso3 %in% cntryList_GADM$iso3) %>% 
   arrange(iso3) %>% 
-  mutate(cntry_code = ifelse(is.na(cntry_code), mean_cntry_code, cntry_code))
+  mutate(cntry_id = ifelse(is.na(cntry_id), mean_cntry_id, cntry_id))
 
 test_IND <- gis_data_GADM_filt %>% 
   filter(iso3 == 'IND')
 
 id_gis <- unique(gis_data_GADM_filt$iso3)
 
-# diffobj::diffChr(id_subnat,id_gis)
+
 
 
 subnat_gis_data <- gis_data_GADM_filt %>% 
@@ -284,10 +278,10 @@ subnat_gis_data <- gis_data_GADM_filt %>%
   group_by(iso3) %>% 
   mutate(rowNmbr = row_number()) %>%  # for each subnat in a country a running number from 1...
   ungroup() %>% 
-  mutate(GID_nmbr = (1000+cntry_code)*1000+rowNmbr) %>% 
+  mutate(GID_nmbr = (1000+cntry_id)*1000+rowNmbr) %>% 
   select(-rowNmbr) %>%
   rename(Country = COUNTRY) %>% 
-  select(Country,iso3,cntry_code,Subnat,GID_1,GID_nmbr,as.character(1988:2021))
+  select(Country,iso3,cntry_id,Subnat,GID_1,GID_nmbr,as.character(1988:2021))
 
 subnat_gis_data_GADM <- subnat_gis_data
 subnat_data_GADM <- subnat_data
@@ -297,7 +291,7 @@ temp_subnat_gis_data_GADM <- subnat_gis_data_GADM %>%
 
 
 
-### EUROSTAT NUTS2 ----
+### 3.3 EUROSTAT NUTS2 ----
 
 
 cntryList_NUTS2 <-  updGIS %>% 
@@ -313,16 +307,16 @@ subnat_data <- read.xlsx('data_in/nuts2_gdp_pps.xlsx', sheet='Sheet 1', startRow
   dplyr::filter(iso3 %in% cntryList_NUTS2$iso3) %>% 
   select(iso3, 'GEO.(Codes)',as.character(2010:2021)) %>% 
   mutate(across(as.character(2010:2021), as.numeric ))
-  
 
 
-subnat_gis_data <-  read_sf('data_gis/nuts2021/NUTS_RG_01M_2021_4326_LEVL_2.shp') %>% 
+
+subnat_gis_data <-  read_sf('/Users/mkummu/R/GIS_data_common/nuts2021/NUTS_RG_01M_2021_4326_LEVL_2.shp') %>% 
   #st_drop_geometry() %>% 
   filter(LEVL_CODE == 2) %>% 
   select(CNTR_CODE,NUTS_ID, NAME_LATN) %>% 
   rename(iso2 = CNTR_CODE) %>% 
   left_join(subnat_data, by=c("NUTS_ID" = "GEO.(Codes)")) %>% 
-  left_join(cntryID[,c(1:2,4)],by='iso2') %>% 
+  left_join(cntryID %>% select(-iso3),by='iso2') %>% 
   dplyr::filter(iso3 %in% cntryList_NUTS2$iso3) %>% 
   
   rename(GID_1 = NUTS_ID) %>% 
@@ -331,9 +325,9 @@ subnat_gis_data <-  read_sf('data_gis/nuts2021/NUTS_RG_01M_2021_4326_LEVL_2.shp'
   group_by(iso3) %>% 
   mutate(rowNmbr = row_number()) %>%  # for each subnat in a country a running number from 1...
   ungroup() %>% 
-  mutate(GID_nmbr = (1000+cntry_code)*1000+rowNmbr) %>% 
+  mutate(GID_nmbr = (1000+cntry_id)*1000+rowNmbr) %>% 
   select(-rowNmbr) %>% 
-  select(Country,iso3,cntry_code,Subnat,GID_1,GID_nmbr,everything()) %>% 
+  select(Country,iso3,cntry_id,Subnat,GID_1,GID_nmbr,everything()) %>% 
   select(-iso2)
 
 #plot(subnat_gis_data)
@@ -348,13 +342,13 @@ subnat_data_NUTS2 <- subnat_data
 
 
 
-### OECD ----
+### 3.4 OECD ----
 
 cntryList_OECD <-  updGIS %>% 
   # filter out countries for which we use different GIS unit than in previous version
   filter(GIS == 'OECD')
 
-meta_OECD <- read.xlsx('data_gis/OECD Territorial grid and Regional typologies - March 2023.xlsx',
+meta_OECD <- read.xlsx('/Users/mkummu/R/GIS_data_common/OECD Territorial grid and Regional typologies - March 2023.xlsx',
                        sheet='List of regions - 2023', startRow = 3) %>% 
   as_tibble() %>% 
   select(ISO3, REG_ID) %>% 
@@ -377,7 +371,7 @@ subnat_data <- read.xlsx('data_in/oecd_gdp_PPP_feb2023.xlsx', sheet='subnat', st
   left_join(cntryID,by='iso3') %>%
   dplyr::filter(iso3 %in% cntryList_OECD$iso3) %>%
   select(-c(iso2, reg2)) %>%
-  select(Country, iso3, cntry_code, everything()) %>% 
+  select(Country, iso3, cntry_id, everything()) %>% 
   arrange(REG_ID) %>%
   rename(tl2_id = REG_ID) %>% 
   as_tibble()
@@ -387,7 +381,7 @@ subnat_data <- read.xlsx('data_in/oecd_gdp_PPP_feb2023.xlsx', sheet='subnat', st
 id_subnat <- unique(subnat_data$iso3) %>% 
   sort()
 
-gis_data <- read_sf( 'data_gis/oecd_tl2.gpkg' ) %>%
+gis_data <- read_sf( '/Users/mkummu/R/GIS_data_common/oecd_tl2.gpkg' ) %>%
   #st_drop_geometry() %>%
   select(tl2_id,iso3,name_en) %>%
   rename(Subnat = name_en) %>%
@@ -408,9 +402,9 @@ subnat_gis_data <- gis_data %>%
   mutate(rowNmbr = row_number()) %>%  # for each subnat in a country a running number from 1...
   ungroup() %>%
   mutate(GID_1 = paste0(iso3,".",rowNmbr,"_1")) %>%
-  mutate(GID_nmbr = (1000+cntry_code)*1000+rowNmbr) %>%
+  mutate(GID_nmbr = (1000+cntry_id)*1000+rowNmbr) %>%
   select(-rowNmbr)%>%
-  select(Country,iso3,cntry_code,Subnat,GID_1,GID_nmbr,as.character(c(1990:2020)))
+  select(Country,iso3,cntry_id,Subnat,GID_1,GID_nmbr,as.character(c(1990:2020)))
 
 subnat_gis_data_OECD <- subnat_gis_data
 temp_oecd <- subnat_gis_data_OECD %>% 
@@ -420,14 +414,14 @@ subnat_data_OECD <- subnat_data
 
 
 
-### OECD level 3 ----
+### 3.5 OECD level 3 ----
 
 cntryList_OECD3 <-  updGIS %>% 
   # filter out countries for which we use different GIS unit than in previous version
   filter(GIS == 'oecd3')
 
-meta_OECD3 <- read.xlsx('data_gis/OECD Territorial grid and Regional typologies - March 2023.xlsx',
-                       sheet='List of regions - 2023', startRow = 3) %>% 
+meta_OECD3 <- read.xlsx('/Users/mkummu/R/GIS_data_common/OECD Territorial grid and Regional typologies - March 2023.xlsx',
+                        sheet='List of regions - 2023', startRow = 3) %>% 
   as_tibble() %>% 
   filter(TL == 3) %>% 
   select(ISO3, REG_ID) %>% 
@@ -442,7 +436,7 @@ meta_OECD3 <- read.xlsx('data_gis/OECD Territorial grid and Regional typologies 
 
 
 # read data
-sf_oecd_tl3 <- st_read('data_gis/OECD_TL3_2020_fixed_valid.gpkg')
+sf_oecd_tl3 <- st_read('/Users/mkummu/R/migration_data_bee/data_in/OECD_TL3_2020_fixed_valid.gpkg')
 
 sf_oecd_tl3_noGeom <- sf_oecd_tl3 %>% 
   st_drop_geometry()
@@ -484,7 +478,7 @@ subnat_data <- read.xlsx('data_in/adm2_oecd_level3_wide.xlsx', sheet='adm2_oecd_
   left_join(cntryID,by='iso3') %>%
   dplyr::filter(iso3 %in% cntryList_OECD3$iso3) %>%
   #select(-c(iso2, reg2)) %>%
-  select(Country, iso3, cntry_code,REG_ID, everything()) %>% 
+  select(Country, iso3, cntry_id,REG_ID, everything()) %>% 
   arrange(REG_ID) %>%
   rename(tl3_id = REG_ID) %>% 
   as_tibble()
@@ -494,7 +488,7 @@ subnat_data <- read.xlsx('data_in/adm2_oecd_level3_wide.xlsx', sheet='adm2_oecd_
 id_subnat <- unique(subnat_data$iso3) %>% 
   sort()
 
-gis_data <- read_sf('data_gis/OECD_TL3_2020_fixed_valid.gpkg')%>%
+gis_data <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/OECD_TL3_2020_fixed_valid.gpkg')%>%
   #st_drop_geometry() %>%
   select(tl3_id,iso3,name_en) %>%
   rename(Subnat = name_en) %>%
@@ -515,9 +509,9 @@ subnat_gis_data <- gis_data %>%
   mutate(rowNmbr = row_number()) %>%  # for each subnat in a country a running number from 1...
   ungroup() %>%
   mutate(GID_1 = paste0(iso3,".",rowNmbr,"_1")) %>%
-  mutate(GID_nmbr = (1000+cntry_code)*1000+rowNmbr) %>%
+  mutate(GID_nmbr = (1000+cntry_id)*1000+rowNmbr) %>%
   select(-rowNmbr)%>%
-  select(Country,iso3,cntry_code,Subnat,GID_1,GID_nmbr,as.character(c(1990:2020)))
+  select(Country,iso3,cntry_id,Subnat,GID_1,GID_nmbr,as.character(c(1990:2020)))
 
 subnat_gis_data_OECD3 <- subnat_gis_data
 temp_oecd3 <- subnat_gis_data_OECD3 %>% 
@@ -529,16 +523,15 @@ subnat_data_OECD3 <- subnat_data
 ### admin areas for which no data
 
 temp_oecd3_noData <- temp_oecd3 %>% 
-  filter(is.na(cntry_code)) %>% 
+  filter(is.na(cntry_id)) %>% 
   select(iso3, GID_1)
 
 write_csv(temp_oecd3_noData, "data_in/oecd3_noData.csv")
 
 
-##### individ -----
+# 3.6 individual countries (GIS layer done within this article) -----
 
-# bahama
-
+# 3.6.1 bahama
 
 
 cntryList_BHS <-  updGIS %>% 
@@ -554,9 +547,8 @@ subnat_data_BHS <- read.xlsx('data_in/BHS_adm1.xlsx', sheet='Sheet1', startRow =
   select('iso3','GID_1','Subnat',as.character(2015:2019)) 
 
 
-# DOSE_shapefiles available from https://zenodo.org/records/7573249
 
-gis_data_BHS <- read_sf( 'data_gis/DOSE_shapefiles.gpkg' ) %>% 
+gis_data_BHS <- read_sf( '/Users/mkummu/R/subnat_gdp_2023/data_gis/DOSE_shapefiles.gpkg' ) %>% 
   #st_drop_geometry() %>% 
   filter(GID_0 == 'BHS') %>% 
   select(GID_0,NAME_0,NAME_1,GID_1) %>% 
@@ -564,7 +556,7 @@ gis_data_BHS <- read_sf( 'data_gis/DOSE_shapefiles.gpkg' ) %>%
   rename(iso3 = GID_0) %>% 
   rename(Subnat = NAME_1) %>% 
   left_join(cntryID,by='iso3') %>% 
-  select(COUNTRY,iso3,cntry_code,GID_1)
+  select(COUNTRY,iso3,cntry_id,GID_1)
 
 
 
@@ -575,23 +567,20 @@ subnat_gis_data <- gis_data_BHS %>%
   group_by(iso3) %>% 
   mutate(rowNmbr = row_number()) %>%  # for each subnat in a country a running number from 1...
   ungroup() %>% 
-  mutate(GID_nmbr = (1000+cntry_code)*1000+rowNmbr) %>% 
+  mutate(GID_nmbr = (1000+cntry_id)*1000+rowNmbr) %>% 
   select(-rowNmbr) %>%
   rename(Country = COUNTRY) %>% 
-  select(Country,iso3,cntry_code,Subnat,GID_1,GID_nmbr,as.character(2015:2019))
+  select(Country,iso3,cntry_id,Subnat,GID_1,GID_nmbr,as.character(2015:2019))
 
 subnat_gis_data_BHS <- subnat_gis_data
 subnat_data_BHS <- subnat_data
 
 
 
-
-
-
 # write.xlsx(subnat_data_OECD,"data_raw/oecd_wide.xlsx")
 
 
-############# Combine all gis data ------
+##### 4. Combine all gis data ------
 
 
 subnat_gis_combined <- bind_rows(subnat_gis_data_hist,
@@ -600,182 +589,128 @@ subnat_gis_combined <- bind_rows(subnat_gis_data_hist,
                                  subnat_gis_data_OECD3,
                                  subnat_gis_data_GADM, 
                                  subnat_gis_data_BHS) %>% 
-  select(Country,iso3,cntry_code,Subnat,GID_1,GID_nmbr,as.character(1989:2021)) %>% 
+  select(Country,iso3,cntry_id,Subnat,GID_1,GID_nmbr,as.character(1989:2021)) %>% 
   arrange(iso3, GID_nmbr, .keep_all = T)
 
 testGIS <- subnat_gis_combined %>% 
   st_drop_geometry()
 
-
-
-if (!dir.exists('results/')) {
-  dir.create('results/')
-}
-
 st_write(subnat_gis_combined, "results/gisData_GDP_pc_combined_feb2024.gpkg",delete_dsn = TRUE)
-
-#st_write(subnat_gis_data_GDL, "results/subnat_gis_data_GDL.gpkg",delete_dsn = TRUE)
 
 write_csv(testGIS, "results/subnat_gis_combined_feb2024.csv")
 
 
-
-#st_is_valid(subnat_gis_combined)
-
-
-# 
-# # test for which admin units no data
-# 
-# allSubNat <- read_csv("results/subnat_gis_combined.csv") 
-# 
-# allSubNat_noData <- allSubNat%>% 
-#   filter(!if_any('1989':'2021', ~ !is.na(.)))
-
-
-
-### Calculate adm0 level data based on adm1 data ----
+### 5.  Calculate adm0 level data based on adm1 data ----
 
 v_subnat_gis_combined <- vect("results/gisData_GDP_pc_combined_feb2024.gpkg")
 
-sf_subnat_gis_combined <- as.data.frame(v_subnat_gis_combined) %>% 
+polyg_subnat_gis_combined <- read_sf("results/gisData_GDP_pc_combined_feb2024.gpkg")
+
+sf_subnat_gis_combined <- polyg_subnat_gis_combined %>% 
+  st_drop_geometry() %>% 
   as_tibble() %>% 
   mutate('2022' = as.numeric(NA))
-  
+
 
 sf_subnat_gis_combined_long <- sf_subnat_gis_combined %>% 
-  pivot_longer(-c(Country, iso3, cntry_code, Subnat, GID_1, GID_nmbr), 
+  pivot_longer(-c(Country, iso3, cntry_id, Subnat, GID_1, GID_nmbr), 
                names_to = 'year', values_to = 'gdp')
 
-# population data (combined HYDE and WorldPop)
-
-r_popCount <- rast('/Users/mkummu/R/GIS_data_common/humanscapesData/popRaster_1990_2020.tif')
-
-# pop missing from some areas for 1990-1999; let's use year 2000 to fill those
-
-r_popCount_1990_99 <- subset(r_popCount, 1:10)
-r_popCount_2000 <- subset(r_popCount, 11)
-r_popCount_1990 <-  subset(r_popCount, 1)
-
-r_popCount_1990[is.na(r_popCount_1990)] <- r_popCount_2000
-
-r_popCount_1990_99[is.na(subset(r_popCount_1990_99,10))] <- r_popCount_2000
-r_popCount_1990_99[subset(r_popCount_1990_99,10) == 0] <- r_popCount_2000
-
-r_pop <- c(r_popCount_1990_99, subset(r_popCount,11:31))
 
 
+ref_raster_5arcmin <- rast(ncol=360*12, nrow=180*12)
+
+
+
+if (file.exists('data_gis/r_pop_GHS_1990_2022_5arcmin.tif')){
+  # load it
+  r_pop <- rast('data_gis/r_pop_GHS_1990_2022_5arcmin.tif')
+} else { # create it
+  
+  r_popCount_GP <- rast("/Users/mkummu/R/GIS_data_common/GHS_POP/r_pop_GHS_1990_2022_5arcmin.tif")
+  
+  writeRaster(r_popCount_GP,'data_gis/r_pop_GHS_1990_2022_5arcmin.tif', overwrite=TRUE)
+  
+  r_pop <- r_popCount_GP
+  
+}
 
 # population for each subnat
 
-#v_subnatPop <- exactextractr::exact_extract(subset(r_pop,1), st_as_sf(v_subnat_gis_combined), fun = sum, na.rm=T)
-
-v_subnatPop <- terra::extract(r_pop, v_subnat_gis_combined, fun = sum, na.rm=T)
+v_subnatPop <- exactextractr::exact_extract(r_pop, polyg_subnat_gis_combined, fun = 'sum')
 
 v_subnatPop_comb <- sf_subnat_gis_combined %>% 
-  select(GID_nmbr, cntry_code) %>% 
+  st_drop_geometry() %>% 
+  select(GID_nmbr, cntry_id) %>% 
   bind_cols(v_subnatPop) %>% 
-  select(-ID) %>% 
-  set_names(c('GID_nmbr', 'cntry_code', paste0('pop',1990:2020))) %>% 
-  mutate(pop2021 = pop2020) %>% mutate(pop1989 = pop1990) %>% 
-  mutate(pop2022 = pop2020) %>% 
-  select(GID_nmbr, cntry_code, paste0('pop',1989:2022))
+  #select(-ID) %>% 
+  set_names(c('GID_nmbr', 'cntry_id', paste0('pop',1990:2022))) %>% 
+  # mutate(pop2021 = pop2020) %>%
+  mutate(pop1989 = pop1990) %>% 
+  # mutate(pop2022 = pop2020) %>% 
+  select(GID_nmbr, cntry_id, paste0('pop',1989:2022))
+
+# gdp per capita
 
 sf_gdp <- sf_subnat_gis_combined %>% 
   select(GID_nmbr, as.character(1989:2022)) %>% 
   #mutate('2022' = NA) %>% 
   as_tibble()
 
-sf_gdp_pop_weighted <- sf_gdp * v_subnatPop_comb %>% select(-cntry_code) 
+# weight with population
+
+sf_gdp_pop_weighted <- sf_gdp * v_subnatPop_comb %>% select(-cntry_id) 
 
 
 sf_gdp_pop_weighted <-  sf_gdp_pop_weighted %>% 
   as_tibble() %>% 
   select(-GID_nmbr) %>% 
   bind_cols(sf_subnat_gis_combined[,3]) %>% 
-  select(cntry_code, as.character(1989:2022))
-  
+  select(cntry_id, as.character(1989:2022))
+
 sf_adm0_gdp_pop_weighted <- sf_gdp_pop_weighted %>% 
-  group_by(cntry_code) %>% 
+  group_by(cntry_id) %>% 
   summarise(across(everything(), list(sum)))
 
 sf_adm0_pop <- v_subnatPop_comb %>% 
   select(-GID_nmbr) %>% 
-  group_by(cntry_code) %>% 
+  group_by(cntry_id) %>% 
   summarise(across(everything(), list(sum)))
 
 sf_adm0_gdp <- sf_adm0_gdp_pop_weighted / sf_adm0_pop 
 
 sf_adm0_gdp  <- sf_adm0_gdp %>% 
   as_tibble() %>% 
-  select(-cntry_code) %>% 
+  select(-cntry_id) %>% 
   bind_cols(sf_adm0_pop[,1]) %>% 
-  left_join(cntryID[,c(1,3)]) %>% 
-  select(cntry_code, iso3, everything()) %>% 
-  set_names('cntry_code', 'iso3', as.character(1989:2022))
-  
+  left_join(cntryID %>% select(cntry_id, iso3)) %>% 
+  select(cntry_id, iso3, everything()) %>% 
+  set_names('cntry_id', 'iso3', as.character(1989:2022))
+
 sf_adm0_gdp_long <- sf_adm0_gdp %>% 
-  pivot_longer(-c(cntry_code, iso3), names_to = 'year', values_to = 'gdp')
+  pivot_longer(-c(cntry_id, iso3), names_to = 'year', values_to = 'gdp')
 
 write_csv(sf_adm0_gdp_long, "results/sf_adm0_gdp_long_feb2024.csv")
 write_csv(sf_subnat_gis_combined_long, "results/sf_subnat_gis_combined_long_feb2024.csv")
 
 
-### Function to interpolate adm1 dataset ----------------
-# variableName = 'gdp'
+### 6. interpolate adm1 dataset ----------------
+
+# load data
 
 sf_adm0_gdp_long <-  read_csv("results/sf_adm0_gdp_long_feb2024.csv")
 sf_subnat_gis_combined_long <-  read_csv("results/sf_subnat_gis_combined_long_feb2024.csv")
 
-myFun_gdpAdm1_interp <- function(variableName = 'gdp') {
-  
-  adm0_data_gdp <- sf_adm0_gdp_long %>% 
-    select(iso3,year,!!as.name(variableName)) %>% 
-    rename(indicAdm0 = !!variableName) %>% 
-    mutate(year = as.character(year))
-  
-  # calculate ratio between adm1 and adm0
-  adm1_data_gdp_ratio <- sf_subnat_gis_combined_long %>% 
-    mutate(year = as.character(year)) %>% 
-    select(iso3,GID_nmbr,year,!!variableName) %>% 
-    rename(indicAdm1 = !!variableName) %>% 
-    left_join(adm0_data_gdp) %>% 
-    mutate(ratioAdm1Adm0 := indicAdm1/indicAdm0)
-  
-  outVarName <- paste0(as.name(variableName),'Ratio')
-  
-  temp <- adm1_data_gdp_ratio %>% 
-    filter(is.na(GID_nmbr))
-   
-  # interpolate ratio
-  adm1_data_SHDI_interpRatio <- adm1_data_gdp_ratio %>% 
-    select(iso3, GID_nmbr, year, ratioAdm1Adm0) %>% 
-    # make sure that all years are included
-    pivot_wider(names_from = 'year', values_from = 'ratioAdm1Adm0') %>% 
-    pivot_longer(-c(iso3, GID_nmbr), names_to = 'year', values_to = 'ratioAdm1Adm0') %>% 
-    # interpolate
-    group_by(GID_nmbr) %>% 
-    #https://stackoverflow.com/questions/70155104/interpolate-na-values-when-column-ends-on-na
-    mutate(ratioAdm1Adm0 = na.approx(ratioAdm1Adm0, maxgap = Inf, rule = 2)) %>% 
-    ungroup() %>% 
-    rename(!!as.name(outVarName) := ratioAdm1Adm0) %>% 
-    select(iso3, GID_nmbr, year, !!as.name(outVarName))
-  
-  
-  
-  return(adm1_data_SHDI_interpRatio)
-}
+# laod function that calculates subnational GDP ratio and interpolates between missing years
+# for tail and head missing years, the latest value is used
 
-# test <- adm1_data_SHDI_interpRatio %>%
-#   dplyr::group_by(iso3, GID_nmbr, year) %>%
-#   dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
-#   dplyr::filter(n > 1L) 
+source('functions/f_interp_adm1.R')
 
+# apply function
 
-### run function -----------------------------------------------------
+adm1_gdp_ratio_interp <- f_interp_adm1('gdp') 
 
-# variables: gdp
-
-adm1_gdp_ratio_interp <- myFun_gdpAdm1_interp('gdp') 
+# write results
 
 write_csv(adm1_gdp_ratio_interp, 'results/adm1_gdp_ratio_interp_feb2024.csv')
 

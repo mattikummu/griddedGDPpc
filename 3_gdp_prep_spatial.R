@@ -23,9 +23,9 @@ timestep <- c(seq(1990, 2022))
 step <- c(seq(1,length(timestep)))
 
 
-#### load  data ----
+#### 1. load  data ----
 
-# read cntry metadata
+# 1.1 read cntry metadata
 cntry_info <- read_csv("data_in/cntry_ids.csv") %>%
   as_tibble() %>% 
   rename(iso3 = country_code) %>% 
@@ -52,39 +52,17 @@ GADM_data <- GADM_data %>%
                                       GID_0)) ) )
 
 
-# adm0 and adm1 data
+# 1.2 load adm0 and adm1 data
 
 adm0_comb_interpExtrap <- read_csv('results/adm0_gdp_pc_long_interpExtrap.csv') %>% 
   rename(gdp = gdp_pc)
-adm1_ratioAdm1Adm0_interp <- read_csv('results/adm1_gdp_ratio_interp_feb2024.csv')
+adm1_ratioAdm1Adm0_interp <- read_csv('results/adm1_gdp_ratio_interp_feb2024.csv') %>% 
+  # replace NA ratio with 1; i.e. we use national value for those
+  mutate(gdpRatio = ifelse(is.na(gdpRatio), 1, gdpRatio))
 
 
-# calculate the number of adm0 and adm1 regions
-adm0_count <- adm0_comb_interpExtrap %>% 
-  distinct(iso3)
 
-adm1_count_adm0 <- adm1_ratioAdm1Adm0_interp %>% 
-  filter(GID_nmbr > 1000) %>% 
-  distinct(iso3)
-
-adm1_count_adm1 <- adm1_ratioAdm1Adm0_interp %>% 
-  filter(GID_nmbr > 1000) %>% 
-  distinct(GID_nmbr)
-
-# check missing data in adm1 data
-NAtemp <- adm1_ratioAdm1Adm0_interp %>% 
-  drop_na()
-
-adm1Missing <- adm1_ratioAdm1Adm0_interp %>% 
-  filter(!GID_nmbr %in% NAtemp$GID_nmbr)
-
-# lifexp missing for some admin areas in TUV
-
-# replace NA ratio with 1; i.e. we use national value for those
-adm1_ratioAdm1Adm0_interp[is.na(adm1_ratioAdm1Adm0_interp)] <- 1
-
-
-# create / load polygon data
+##### 2. create / load polygon data ------
 
 
 if (file.exists('data_gis/gdp_adm0adm1_polyg_feb2024.gpkg')){
@@ -99,9 +77,10 @@ if (file.exists('data_gis/gdp_adm0adm1_polyg_feb2024.gpkg')){
   adm1_nogeom <- adm1_polyg %>% 
     st_drop_geometry()
   
-  sf_adm0_polyg_diss <- read_sf('results/polyg_gdp_pc_adm0_1990_2022.gpkg')
+  sf_adm0_polyg_diss <- read_sf('results/polyg_gdp_pc_adm0_1990_2021.gpkg')
   
   
+ 
   # check which countries are not in adm1_polyg
   
   amd1_data_uniqueISO3 <- unique(adm1_ratioAdm1Adm0_interp$iso3) %>% 
@@ -131,15 +110,13 @@ if (file.exists('data_gis/gdp_adm0adm1_polyg_feb2024.gpkg')){
     mutate(iso3 = ifelse(iso3 == 'XKO','KSV',iso3)) %>% 
     filter(iso3 %in% iso3_onlyInAdm0$iso3) %>% # join the missing countries in HDI polyg; so that only those are selected
     filter(iso3 != 'ALA' & iso3 != 'XCA' & iso3 != 'ATA') %>%  # remove Åland (part of Finland); Caspian Sea (not needed), Antarctica
-    #filter(iso3 != 'ESH') %>%  # drop Western Sahara; in GDL part of Morocco
     mutate(GID_nmbr = paste0(iso3,'t')) %>% 
     mutate(continent = 'GADM') %>% 
     left_join(cntry_info[,c(2,4)]) %>% 
     mutate(GID_nmbr = cntry_id) %>% 
     rename(cntry_code = cntry_id) %>% 
     mutate(Subnat = 'Only adm0 data') %>% 
-    select(Country, GID_nmbr, iso3,GID_nmbr, geom) #%>% 
-  #set_names(c('GID_nmbr', 'continent', 'iso_code', 'geometry'))
+    select(Country, GID_nmbr, iso3,GID_nmbr, geom) 
   
   
   
@@ -157,23 +134,15 @@ if (file.exists('data_gis/gdp_adm0adm1_polyg_feb2024.gpkg')){
     rename(iso3 = value) %>% 
     left_join(.,cntry_info)
   
-  
-  # create unique identified for each admin area in gdp_adm0adm1_polyg
-  
-  # gdp_adm0adm1_polyg <-  gdp_adm0adm1_polyg %>% 
-  #   #st_drop_geometry() %>% 
-  #   left_join(cntry_info[,c(2,4)]) %>% 
-  #   mutate(GID_nmbr = ifelse(iso3 %in% adm1ids_cntry$iso3, 
-  #                         cntry_id * 10000 + as.numeric( str_split(GID_nmbr, "r", simplify = TRUE)[ , 2] ),
-  #                         cntry_id))
-  test_gdp_adm0adm1_polyg <-gdp_adm0adm1_polyg  %>% 
+
+  test_gdp_adm0adm1_polyg <- gdp_adm0adm1_polyg  %>% 
     st_drop_geometry()
   
   write_sf(gdp_adm0adm1_polyg,'data_gis/gdp_adm0adm1_polyg_feb2024.gpkg')
 }
 
 
-# create adm0, adm1 raster -----------------------------------------------------
+#### 3. create adm0, adm1 raster -----------------------------------------------------
 
 if (file.exists('data_gis/gdp_Adm0Adm1_raster_5arcmin_feb2024.tif')){
   # load it
@@ -221,94 +190,125 @@ if (file.exists('data_gis/gdp_Adm0Adm1_raster_5arcmin_feb2024.tif')){
 
 
 
-### put data to raster -----------------------------------------------------
+### 4. put data to raster -----------------------------------------------------
+
+source('functions/f_gdp_data2raster_adm1.R')
 
 
-myFun_gdp_data2raster <- function(inYears = 1990:2022, IndexName = 'gdp', 
+yearsIn = 1990:2022
+
+rast_gdp <- f_gdp_data2raster_adm1(inYears = yearsIn, 
+                                  IndexName = 'gdp', 
                                   inDataAdm0 = adm0_comb_interpExtrap , 
-                                  inDataAdm1 = adm1_ratioAdm1Adm0_interp) {
+                                  inDataAdm1 = adm1_ratioAdm1Adm0_interp) 
+
+terra::writeRaster(rast_gdp,paste0('results/rast_adm1_','gdp','_perCapita_unharm_','_',yearsIn[1],'_',yearsIn[length(yearsIn)],
+                                      '.tif'), gdal="COMPRESS=LZW",overwrite=TRUE)
+
+
+#### 5. harmonise against reported national values ----
+
+# 5.1 load data
+
+sf_adm0 <- read_sf('data_gis/gdp_adm0_polyg_simple.gpkg')
+
+rast_gdpAdm1 <- rast_gdp
+
+r_popCount_mod_ext <- rast('data_gis/r_pop_GHS_1990_2022_5arcmin.tif')
+
+
+#### national data, reported (from 1_gdp_prepare_adm0.R)
+
+adm0_reported <- adm0_comb_interpExtrap 
+
+### national data, from downscaled raster
+
+adm0_polyg_final <- sf_adm0 %>% 
+  left_join(cntry_info %>% 
+              select(country_name, iso3, cntry_id)  %>% 
+              rename(GID_nmbr = cntry_id) %>% 
+              rename(Country = country_name)) %>% 
+  filter(!is.na(GID_nmbr)) %>% 
+  select(Country, GID_nmbr, iso3)
+
+# adm0 raster
+r_gdp_adm0_polyg_5arcmin <- rast('data_gis/gdp_Adm0_raster_5arcmin.tif')
+
+
+## 5.2 extract
+
+# increase gdal memory size
+terra::gdalCache(20000)
+
+rast_gdpAdm1[rast_gdpAdm1 < 0] = NA
+r_popCount_mod_ext[r_popCount_mod_ext < 0] = NA
+
+# adm1
+ext_gdp_x_pop_adm1 <- exactextractr::exact_extract(rast_gdpAdm1*r_popCount_mod_ext,adm0_polyg_final, fun='sum' )
+dim(ext_gdp_x_pop_adm1)
+
+# pop
+ext_pop <- exactextractr::exact_extract(x= r_popCount_mod_ext,y=adm0_polyg_final, fun='sum')
+dim(ext_pop)
+
+# 5.3 weighted average from adm1 raster data, and then calculate ratio between that and reported GDP
+
+sf_adm0_comb_adm1_ratio <- adm0_polyg_final %>%
+  bind_cols(ext_gdp_x_pop_adm1 / ext_pop) %>%
+  st_drop_geometry() %>% 
+  #select(-c(ID)) %>%
+  set_names('Country', 'GID_nmbr', 'iso3', paste0(1990:2022) ) %>%
+  as_tibble() %>%
+  pivot_longer(-c('Country', 'GID_nmbr', 'iso3'), names_to = 'year', values_to = 'gdp_pc_raster') %>%
+  mutate(year = as.numeric(year)) %>% 
+  distinct(GID_nmbr, year, .keep_all = T) %>%
+  left_join(adm0_reported %>% mutate(year = as.numeric(year)) %>% distinct(iso3, year, .keep_all = T)  ) %>%
+  # calculate ratio
+  mutate(ratio = gdp_pc_raster / gdp) %>% 
+  # if ratio is 0 or NA, let's use 1
+  mutate(ratio = ifelse(is.na(ratio), 1, ratio )) %>% 
+  mutate(ratio = ifelse(ratio == 0, 1, ratio )) 
+
+## 5.4 back to map
+
+
+ratioRaster = rast()
+
+for (iYear in yearsIn) {
   
-  coll_raster = rast()
+  tempData_selYear <- sf_adm0_comb_adm1_ratio %>% 
+    filter(year == iYear)
   
-  ratioName <- paste0(IndexName,'Ratio')
+  temp_id <-  as.numeric(tempData_selYear$GID_nmbr)
+  temp_v <- as.numeric(tempData_selYear$ratio)
   
-  tempDataAdm0 <- inDataAdm0 %>% 
-    filter(year %in% inYears) %>% 
-    select(iso3, year, !!IndexName) %>% 
-    left_join(cntry_info[,c(2,4)]) %>% 
-    mutate(GID_nmbr = cntry_id) %>% 
-    dplyr::select(c(!!IndexName,year, cntry_id, GID_nmbr, iso3))
+  # reclassify
+  temp_raster <- classify(r_gdp_adm0_polyg_5arcmin,
+                          cbind(temp_id, temp_v))
   
-  tempDataAdm1_Ratio <- inDataAdm1 %>% 
-    filter(year %in% inYears) %>% 
-    select(iso3, year, GID_nmbr, !!ratioName) %>% 
-    left_join(cntry_info[,c(2,4)]) %>% 
-    #mutate(GID_nmbr = cntry_id * 10000 + as.numeric( str_split(GID_nmbr, "r", simplify = TRUE)[ , 2] ) ) %>% 
-    left_join(tempDataAdm0[,1:3]) %>% 
-    rename(adm0Value = !!IndexName) %>% 
-    mutate(!!as.name(IndexName) := !!as.name(ratioName) * adm0Value) %>% 
-    dplyr::select(c(!!IndexName,year, 'GID_nmbr', iso3))
+  #plot(temp_raster)
   
-  tempDataAdm0Adm1 <- tempDataAdm0 %>% 
-    filter(!iso3 %in% unique(tempDataAdm1_Ratio$iso3)) %>% 
-    select(-cntry_id) %>% 
-    bind_rows(tempDataAdm1_Ratio) %>% 
-    select(-iso3) %>% 
-    drop_na()
-  
-  # check adm0 areas for which we do not have data, and put those to NA in the raster
-  idNoData <- gdp_adm0adm1_polyg %>% 
-    st_drop_geometry() %>% 
-    select(GID_nmbr) %>% 
-    filter(!GID_nmbr %in% unique(tempDataAdm0Adm1$GID_nmbr)) %>% 
-    # ## REMOVE WST SAHARA as data exist from subnational ata
-    # filter(!GID_nmbr == 912) %>% 
-    drop_na()
-  
-  if(dim(idNoData)[1] == 0) {
-    # no nothing
-  } else {
-    r_gdp_adm0adm1_polyg_5arcmin[r_gdp_adm0adm1_polyg_5arcmin %in% as.numeric(as.matrix(idNoData))] <- NA
-  }
-  
-  for (iYear in inYears) {
-    
-    tempDataAdm0Adm1_selYear <- tempDataAdm0Adm1 %>% 
-      filter(year == iYear)
-    
-    temp_id <-  as.numeric(tempDataAdm0Adm1_selYear$GID_nmbr)
-    temp_v <- as.numeric(tempDataAdm0Adm1_selYear[[IndexName]])
-    
-    # reclassify
-    temp_raster <- classify(r_gdp_adm0adm1_polyg_5arcmin,
-                            cbind(temp_id, temp_v))
-    
-    terra::add(coll_raster) <- temp_raster
-  }
-  
-  names(coll_raster) <- paste0(IndexName,'_',inYears[1]:inYears[length(inYears)])
-  
-  terra::writeRaster(coll_raster,paste0('results/rast_adm1_',IndexName,'_pc_',inYears[1],'_',inYears[length(inYears)],
-                                        '.tif'), gdal="COMPRESS=LZW",overwrite=TRUE)
-  
-  return(coll_raster)
+  terra::add(ratioRaster) <- temp_raster
 }
 
-varNames <- c('gdp' )
-
-for (iVar in 1:length(varNames)) {
-  
-  rast_varName <- myFun_gdp_data2raster(inYears = 1990:2022, 
-                                        IndexName = varNames[iVar], 
-                                        inDataAdm0 = adm0_comb_interpExtrap , 
-                                        inDataAdm1 = adm1_ratioAdm1Adm0_interp) 
-  
-}
+finalRaster <- rast_gdp / ratioRaster
 
 
+### harmonisation did not work, for some reason, for Bahamas - let's use nationa values for it
+
+rast_gdpAdm0 <- rast("results/rast_adm0_gdp_perCapita_1990_2022.tif")
+rast_adm0_admin <- rast("data_gis/gdp_adm0_raster_5arcmin.tif")
+
+finalRaster[rast_adm0_admin == 21] <- rast_gdpAdm0
 
 
-### simplify polygon layer ----
+# save raster
+
+terra::writeRaster(finalRaster,paste0('results/rast_adm1_','gdp','_perCapita','_',yearsIn[1],'_',yearsIn[length(yearsIn)],
+                                      '.tif'), gdal="COMPRESS=LZW",overwrite=TRUE)
+
+
+### 6. prepare simplified  polygon layer ----
 
 if (file.exists('data_gis/gdp_Adm0Adm1_polyg_simple.gpkg')){
   # load it
@@ -322,182 +322,21 @@ if (file.exists('data_gis/gdp_Adm0Adm1_polyg_simple.gpkg')){
   writeVector(p, 'data_gis/gdp_Adm0Adm1_polyg_simple.gpkg', overwrite=T)
   
   gdp_adm0adm1_polyg_simpl <- st_read('data_gis/gdp_Adm0Adm1_polyg_simple.gpkg') #%>% 
-  #rename(GID_nmbr = layer)
-  
-  # gdp_adm0adm1_polyg_simpl <- st_as_sf(raster::raster(r_gdp_adm0adm1_polyg_5arcmin))  %>% 
-  # 
-  #   sf::st_simplify(., preserveTopology = T, dTolerance = 0.1)
-  # 
-  # 
-  # st_write(gdp_adm0adm1_polyg_simpl, 'data_gis/GDL_regions_v7_simpl.gpkg', delete_dsn=T)
+
   
 }
 
 
 
 #### put data to gpkg (and slope to raster) -----
-
-
-
-
-myFun_gdp_data2gpkg <- function(inYears = 1990:2022, IndexName = 'gdp', 
-                                inDataAdm0 = adm0_comb_interpExtrap , 
-                                inDataAdm1 = adm1_ratioAdm1Adm0_interp) {
   
-  ratioName <- paste0(IndexName,'Ratio')
-  
-  tempDataAdm0 <- inDataAdm0 %>% 
-    filter(year %in% inYears) %>% 
-    select(iso3, year, !!IndexName) %>% 
-    left_join(cntry_info[,c(2,4)]) %>% 
-    mutate(GID_nmbr = cntry_id) %>% 
-    dplyr::select(c(!!IndexName,year, cntry_id, GID_nmbr, iso3))
-  
-  tempDataAdm1_Ratio <- inDataAdm1 %>% 
-    filter(year %in% inYears) %>% 
-    select(iso3, year, GID_nmbr, !!ratioName) %>% 
-    left_join(cntry_info[,c(2,4)]) %>% 
-    #mutate(GID_nmbr = cntry_id * 10000 + as.numeric( str_split(GID_nmbr, "r", simplify = TRUE)[ , 2] ) ) %>% 
-    left_join(tempDataAdm0[,1:3]) %>% 
-    rename(adm0Value = !!IndexName) %>% 
-    mutate(!!as.name(IndexName) := !!as.name(ratioName) * adm0Value) %>% 
-    dplyr::select(c(!!IndexName,year, 'GID_nmbr', iso3))
-  
-  tempDataAdm0Adm1 <- tempDataAdm0 %>% 
-    filter(!iso3 %in% unique(tempDataAdm1_Ratio$iso3)) %>% 
-    select(-cntry_id) %>% 
-    bind_rows(tempDataAdm1_Ratio) %>% 
-    select(-iso3) %>% 
-    drop_na()
-  
-  # calculate trend
-  
-  # https://stackoverflow.com/questions/72922288/group-wise-linear-models-function-nest-by
-  
-  tempDataAdm0Adm1_trend <- tempDataAdm0Adm1 %>% 
-    group_by(GID_nmbr) %>% 
-    mutate(time = row_number()) %>% 
-    ungroup() %>% 
-    select(-year) %>% 
-    nest(data = -GID_nmbr) %>% 
-    mutate(
-      model = map(data,  ~ lm(log10( !!as.name(IndexName) ) ~ time, data = .))
-    ) %>% 
-    mutate(
-      tidy_summary = map(model, tidy)
-    ) %>% 
-    unnest(tidy_summary) %>% 
-    filter(term == 'time') %>% 
-    select(GID_nmbr, estimate, p.value)
-  
-  
-  
-  tempDataAdm0Adm1_trend_mblm <- tempDataAdm0Adm1 %>% 
-    #filter(GID_nmbr == 226)  %>% 
-    as_tibble() %>% 
-    group_by(GID_nmbr) %>% 
-    mutate(time = row_number()) %>% 
-    ungroup() %>% 
-    select(-year) %>% 
-    mutate(log10_gdp_pc = log10(!!as.name(IndexName))) %>% 
-    nest(data = -GID_nmbr) %>% 
-    mutate(
-      model = map(data,  ~ mblm(log10_gdp_pc ~ time, data = .))
-    ) %>% 
-    mutate(
-      tidy_summary = map(model, tidy)
-    ) %>% 
-    unnest(tidy_summary) %>% 
-    filter(term == 'time') %>% 
-    select(GID_nmbr, estimate, p.value)
-  
-  
-  
-  # # https://stackoverflow.com/questions/32274779/extracting-p-values-from-multiple-linear-regression-lm-inside-of-a-ddply-funct
-  # 
-  # tempDataAdm0Adm1_trend <- tempDataAdm0Adm1 %>% 
-  #   group_by(GID_nmbr) %>% 
-  #   #nest() %>% 
-  #   do({model = lm(gnic~year, data=.)    # create your model
-  #   data.frame(tidy(model),              # get coefficient info
-  #              glance(model))})   %>% 
-  #   filter(term == 'year')
-  
-  gdp_adm0adm1_polyg_noGeom <- gdp_adm0adm1_polyg %>%
-    st_drop_geometry() %>% 
-    select(iso3, GID_nmbr, Country, Subnat)
-  
-  tempDataAdm0Adm1_wTrend <- tempDataAdm0Adm1 %>% 
-    pivot_wider(names_from = 'year', values_from = as.name(!!IndexName)) %>% 
-    left_join(tempDataAdm0Adm1_trend_mblm) %>% 
-    mutate(p.value = p.value < 0.05) %>% 
-    mutate(slope = p.value * estimate) %>% 
-    right_join(gdp_adm0adm1_polyg_simpl) %>% 
-    left_join(gdp_adm0adm1_polyg_noGeom) %>% 
-    select(GID_nmbr, iso3,  Country, Subnat, slope, everything()) %>% 
-    select(-c(estimate, p.value))%>% 
-    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
-  
-  # temp <- tempDataAdm0Adm1_wTrend %>%
-  #   dplyr::group_by(GID_nmbr, year) %>%
-  #   dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
-  #   dplyr::filter(n > 1L) 
-  
-  st_write(tempDataAdm0Adm1_wTrend,paste0('results/polyg_adm1_',IndexName,'_pc_',inYears[1],'_',inYears[length(inYears)],'.gpkg'), delete_dsn=T)
-  
-  # tempDataAdm0Adm1_wTrend <- st_read("results/polyg_adm1_gdp_pc_1990_2022.gpkg") %>%
-  #   as_tibble() %>%
-  #   mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
-  # 
-  # only csv
-  temp <- tempDataAdm0Adm1_wTrend %>% 
-    st_drop_geometry() %>% 
-    select(-geom) %>% 
-    mutate(across(paste0('X',inYears[1]):paste0('X',inYears[length(inYears)]), round, 0))
-  
-  
-  write_csv(temp, paste0('results/tabulated_adm1_',IndexName,'_pc_',inYears[1],'_',inYears[length(inYears)],'.csv'))
-  
-  # slope to raster
-  
-  
-  idNoData <- gdp_adm0adm1_polyg %>% 
-    st_drop_geometry() %>% 
-    select(GID_nmbr) %>% 
-    filter(!GID_nmbr %in% unique(tempDataAdm0Adm1$GID_nmbr)) %>% 
-    # ## REMOVE WST SAHARA as data exist from subnational ata
-    # filter(!GID_nmbr == 912) %>% 
-    drop_na()
-  
-  if(dim(idNoData)[1] == 0) {
-    # no nothing
-  } else {
-    r_gdp_adm0adm1_polyg_5arcmin[r_gdp_adm0adm1_polyg_5arcmin %in% as.numeric(as.matrix(idNoData))] <- NA
-  }
-  
-  temp_id <-  as.numeric(tempDataAdm0Adm1_trend_mblm$GID_nmbr)
-  temp_v <- as.numeric(tempDataAdm0Adm1_trend_mblm$estimate)
-  
-  # reclassify
-  slope_raster <- classify(r_gdp_adm0adm1_polyg_5arcmin,
-                           cbind(temp_id, temp_v))
-  
-  names(slope_raster) <- paste0(IndexName,'_slope_',inYears[1],'_',inYears[length(inYears)] )
-  
-  
-  
-  terra::writeRaster(slope_raster,paste0('results/rast_slope_log10',IndexName,'_',
-                                         inYears[1],'_',inYears[length(inYears)],'.tif'), gdal="COMPRESS=LZW",overwrite=TRUE)
-  
-  
-}
-
+source('functions/f_gdp_data2gpkg_adm1.R')
 
 varNames <- c('gdp')
 
 for (iVar in 1:length(varNames)) {
   
-  vect_varName <- myFun_gdp_data2gpkg(inYears = 1990:2022, 
+  vect_varName <- f_gdp_data2gpkg_adm1(inYears = 1990:2022, 
                                       IndexName = varNames[iVar], 
                                       inDataAdm0 = adm0_comb_interpExtrap, 
                                       inDataAdm1 = adm1_ratioAdm1Adm0_interp) 
@@ -505,5 +344,24 @@ for (iVar in 1:length(varNames)) {
 }
 
 
+## for bahamas, national data
+
+v_adm0 <- read_sf("results/polyg_adm0_gdp_perCapita_1990_2022.gpkg")
+v_adm1 <- read_sf("results/polyg_adm1_gdp_perCapita_1990_2022.gpkg")
+
+v_adm0_sel <- v_adm0 %>% 
+  filter(iso3 == "BHS" ) %>% 
+  select(-cntry_id)
+
+v_adm1_final <- v_adm1 %>% 
+  filter(!iso3 == "BHS") %>% 
+  bind_rows(v_adm0_sel) %>% 
+  arrange(iso3, GID_nmbr) 
 
 
+
+temp <- v_adm1_final %>% 
+  st_drop_geometry() 
+
+write_csv(temp, "results/tabulated_gdp_perCapita.csv")
+st_write(v_adm1_final,"results/polyg_adm1_gdp_perCapita_1990_2022.gpkg",delete_dsn=T)
