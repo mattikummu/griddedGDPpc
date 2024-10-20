@@ -37,6 +37,6 @@ The code is numbered with the order it should be run. Below each code is briefly
 **11_storeFinalFiles.R**: store final files
 
 
-To run the code, please extract the folders in code_input_data.zip (available from http://doi.org/10.5281/zenodo.10976734) under the same folder with the code. 
+The input data needed to run the code is available in the repository: https://doi.org/10.5281/zenodo.10976733. Please extract the zip-file under the same folder with the code. 
 
 For more information, please contact Matti Kummu (matti.kummu@aalto.fi)
