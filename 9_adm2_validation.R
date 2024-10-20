@@ -251,7 +251,8 @@ r_popCount_mod_ext <- extend(r_popCount_mod,subset(rast_gdpAdm2,1))
 #national data, reported (from 1_gdp_prepare_adm0.R)
 
 adm0_reported <- read_csv('results/adm0_reported_data.csv') %>% 
-  pivot_longer(-iso3, names_to = 'year', values_to = 'gdp_pc')
+  pivot_longer(-iso3, names_to = 'year', values_to = 'gdp_pc') %>% 
+  drop_na()
 
 
 ### 3.2 calculate national data from downscaled raster
@@ -298,9 +299,9 @@ sf_adm0_comb_adm1 <- adm0_polyg_final %>%
   left_join(adm0_reported) %>%
   distinct(.keep_all = T) %>% 
   drop_na() %>% 
-  filter(!gdp_pc_downscaled == 0) %>% 
+  filter(!gdp_pc_downscaled == 0) #%>% 
   # let's use only countries with more than 100k people
-  filter(Pop2022_millions > 0.1)
+  #filter(Pop2022_millions > 0.1)
 
 
 # 3.3.1 correlation
@@ -318,7 +319,7 @@ validation_gdp_adm0_adm1 <- ggscatter(sf_adm0_comb_adm1, x = "gdp_pc", y = "gdp_
 validation_gdp_adm0_adm1
 
 
-
+length(unique(sf_adm0_comb_adm1$iso3))
 
 # Calculate the deviation from the 1:1 line
 sf_adm0_comb_adm1$deviation <- sf_adm0_comb_adm1$gdp_pc_downscaled - sf_adm0_comb_adm1$gdp_pc
@@ -327,7 +328,7 @@ sf_adm0_comb_adm1$deviation <- sf_adm0_comb_adm1$gdp_pc_downscaled - sf_adm0_com
 sf_adm0_comb_adm1 <-  sf_adm0_comb_adm1 %>% 
   arrange(deviation)
 
-length(unique(sf_adm0_comb_adm1$iso3))
+
 
 
 # 3.4 for admin 2 level data
@@ -366,6 +367,7 @@ plot_comb_adm0 <- grid.arrange(validation_gdp_adm0_adm1, validation_gdp_adm0_adm
 
 ggsave('figures/validation_gdp_reportedAdm0.pdf', plot_comb_adm0, width = 180, height = 80, units = 'mm')
 
+length(unique(sf_adm0_comb_adm2$iso3))
 
 # Calculate the deviation from the 1:1 line
 sf_adm0_comb_adm2$deviation <- sf_adm0_comb_adm2$gdp_pc_downscaled - sf_adm0_comb_adm2$gdp_pc
@@ -374,4 +376,4 @@ sf_adm0_comb_adm2$deviation <- sf_adm0_comb_adm2$gdp_pc_downscaled - sf_adm0_com
 sf_adm0_comb_adm2 <-  sf_adm0_comb_adm2 %>% 
   arrange(deviation)
 
-length(unique(sf_adm0_comb_adm2$iso3))
+
