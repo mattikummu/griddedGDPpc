@@ -21,9 +21,9 @@ The code is numbered with the order it should be run. Below each code is briefly
 
 **4_downscaling_train.R**: prepares the training data for downscaling model
 
-**Downscaling_Matlab_Codes** (under this folder, with own readme file): downscaling admin 1 level data to admin 2 level
-
 **5_downscaling_predict.R**: prepares the data for downscaling prediction to admin 2 level
+
+**Downscaling_Matlab_Codes** (under this folder, with own readme file): downscaling admin 1 level data to admin 2 level
 
 **6_gdpTotal.R**: estimates the total GDP PPP, using admin 2 level GDP per capita (from 5_downscaling_predict.R) and population count data
 
