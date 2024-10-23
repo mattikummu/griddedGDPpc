@@ -150,29 +150,7 @@ gdp_breaks <- seq( plyr::round_any( as.numeric(min_gdp),accuracy=0.5,f=floor ),
 gdp_breaks_2 <- c(0,1,2,2^2,2^3,2^4,2^5,2^6,2^7,2^8,2^9,2^10,2^11, 2^12, 2^13)
 
 # 3.3 mapping function
-raster2map_v2 <- function(r_in,shape_in, colPalette, plotTitle) {
-  
-  
-  tmapMap <- tm_shape(r_in) +
-    tm_raster(palette = colPalette,
-              #breaks = fishing.breaks,
-              title = plotTitle,
-              #n = 20,
-              style = "fixed",
-              breaks = gdp_breaks_2,
-              colorNA = NULL,
-              legend.is.portrait = FALSE) +
-    tm_shape(shape_in,projection = "robin") +
-    tm_borders(col="grey75",lwd = 0.3)+
-    tm_layout(legend.bg.color = TRUE,
-              legend.outside.position = "bottom",
-              legend.outside = TRUE,
-              frame = FALSE)
-  
-  
-  return(tmapMap)
-}
-
+source('functions/f_raster2map_v2.R')
 
 # 3.4 project raster
 
@@ -184,7 +162,7 @@ crs <- "+proj=robin +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m"
 
 gdpTot_2022_5arcmin_round_zero2NA_robin <- terra::project(gdpTot_2022_5arcmin_round_zero2NA/10^6, crs)
 
-p_gdp_total <- raster2map_v2(gdpTot_2022_5arcmin_round_zero2NA_robin,cntry50,gdp_pal,"GDP (PPP) million USD")
+p_gdp_total <- f_raster2map_v2(gdpTot_2022_5arcmin_round_zero2NA_robin,cntry50,gdp_pal,"GDP (PPP) million USD")
 
 
 # 3.5 plot
@@ -206,29 +184,7 @@ tmap_save(p_gdp_total,filename = paste0('figures/figGDPtotal/fig_gdpTotal_millio
 # 3.6 map close-ups
 
 # 3.6.1 mapping function
-raster2map_v2_bbox <- function(r_in,shape_in, colPalette, plotTitle,bboxUsed) {
-  
-  
-  tmapMap <- tm_shape(r_in,  bbox= bboxUsed) +
-    tm_raster(palette = colPalette,
-              #breaks = fishing.breaks,
-              title = plotTitle,
-              #n = 20,
-              style = "fixed",
-              breaks = gdp_breaks_2,
-              colorNA = NULL,
-              legend.is.portrait = FALSE) +
-    tm_shape(shape_in, bbox= bboxUsed) +
-    tm_borders(col="white",lwd = 0.2)+
-    tm_layout(legend.bg.color = TRUE,
-              legend.outside.position = "bottom",
-              legend.outside = TRUE,
-              frame = FALSE)
-  
-  
-  return(tmapMap)
-}
-
+source('functions/f_raster2map_v2_bbox.R')
 
 
 sf_adm0 <- vect("/Users/mkummu/R/GIS_data_common/ne_50m_adm0_all_ids/adm0_NatEarth_all_ids.shp") %>%
@@ -245,9 +201,9 @@ bbox_india <- st_bbox(sf_adm0 %>% filter(iso_a3 %in% c("IND","THA" )))
 bbox_brazil <- st_bbox(sf_adm0 %>% filter(iso_a3 %in% c("BRA","ECU" )))
 bbox_centralEur <- st_bbox(sf_adm0 %>% filter(iso_a3 %in% c("DEU", "ITA", "AND", "POL") ))
 
-p_gdp_IND <- raster2map_v2_bbox(crop(gdpTot_1990_2022_5arcmin_round_zero2NA/10^6, bbox_india),sf_adm0,gdp_pal,'GDP tota' ,bbox_india)
-p_gdp_BRA <- raster2map_v2_bbox(crop(gdpTot_1990_2022_5arcmin_round_zero2NA/10^6, bbox_brazil),sf_adm0,gdp_pal,'GDP tota',bbox_brazil )
-p_gdp_CE <- raster2map_v2_bbox(crop(gdpTot_1990_2022_5arcmin_round_zero2NA/10^6, bbox_centralEur),sf_adm0,gdp_pal,'GDP tota',bbox_centralEur )
+p_gdp_IND <- f_raster2map_v2_bbox(crop(gdpTot_1990_2022_5arcmin_round_zero2NA/10^6, bbox_india),sf_adm0,gdp_pal,'GDP tota' ,bbox_india)
+p_gdp_BRA <- f_raster2map_v2_bbox(crop(gdpTot_1990_2022_5arcmin_round_zero2NA/10^6, bbox_brazil),sf_adm0,gdp_pal,'GDP tota',bbox_brazil )
+p_gdp_CE <- f_raster2map_v2_bbox(crop(gdpTot_1990_2022_5arcmin_round_zero2NA/10^6, bbox_centralEur),sf_adm0,gdp_pal,'GDP tota',bbox_centralEur )
 
 # 3.6.3 map
 
