@@ -4,7 +4,7 @@ These codes were used to create the 'Downscaled gridded global dataset for Gross
 
 Kummu et al. 2024. Downscaled gridded global dataset for Gross Domestic Product (GDP) per capita at purchasing power parity (PPP) over 1990-2022. Preprint (submitted to Scientific Data). 
 
-The input data needed to run the code is available in the repository: https://doi.org/10.5281/zenodo.10976733. Please extract the zip-file under the same folder with the code. 
+The input data needed to run the code is available in the repository: https://doi.org/10.5281/zenodo.10976733. Please extract the zip-file (code_input_data.zip) under the same folder with the code. 
 
 The final results are within the same repository. 
 
@@ -38,6 +38,6 @@ The code is numbered with the order it should be run. Below each code is briefly
 **11_storeFinalFiles.R**: store final files
 
 
-The input data needed to run the code is available in the repository: https://doi.org/10.5281/zenodo.10976733. Please extract the zip-file under the same folder with the code. 
+The input data needed to run the code is available in the repository: https://doi.org/10.5281/zenodo.10976733. Please extract the zip-file (code_input_data.zip) under the same folder with the code. 
 
 For more information, please contact Matti Kummu (matti.kummu@aalto.fi)
