@@ -37,6 +37,8 @@ The code is numbered with the order it should be run. Below each code is briefly
 
 **11_storeFinalFiles.R**: store final files
 
+**functions**: the functions used in the scripts above are in this folder
+
 
 The input data needed to run the code is available in the repository: https://doi.org/10.5281/zenodo.10976733. Please extract the zip-file (code_input_data.zip) under the same folder with the code. 
 
