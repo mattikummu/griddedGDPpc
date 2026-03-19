@@ -160,8 +160,10 @@ if (file.exists('results/ext_data_adm1_mar2024.RData')){
   r_urbanisation_ext <- extend(r_urbanisation,ref_raster_5arcmin)
   ext(r_urbanisation_ext) <- ext(ref_raster_5arcmin)
 
+  # Subnational Gini dataset – download: https://zenodo.org/records/15055369
   r_gini <- rast('/Users/mkummu/R/subnatGini/results/rast_gini_disp_1990_2021.tif')
 
+  # Travel time to cities – download: https://figshare.com/articles/dataset/Travel_time_to_cities_and_ports_in_the_year_2015/7638134
   r_travelTime <- rast('/Users/mkummu/R/GIS_data_common/travel_time_cities/travel_time_to_cities_11.tif')
   # sea to NA
   valueSea <- r_travelTime[1,1]

@@ -12,7 +12,11 @@ These codes were used to create the dataset published in:
 
 ## Overview
 
-This repository contains the R and Matlab code used to produce a global, gridded GDP per capita (PPP, constant 2017 USD) dataset at multiple spatial resolutions (ADM0, ADM1, ADM2, 5 arc-min, 30 arc-min) for the period 1990–2024.
+This repository contains the R and Matlab code used to produce a global, gridded GDP per capita (PPP, constant 2021 USD) dataset at multiple spatial resolutions (ADM0, ADM1, ADM2, 5 arc-min, 30 arc-min) for the period 1990–2024.
+
+Note:
+- the dataset itself is available separately on Zenodo; see "Data availability" section below.
+- we have updated the dataset to include the years 2023-2024, and the code in this repository reflects those updates.
 
 The processing pipeline:
 1. Compiles and gap-fills national (ADM0) GDP per capita from World Bank, IMF, and CIA World Factbook sources.

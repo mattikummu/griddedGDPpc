@@ -41,6 +41,7 @@ sf_gdp_adm2 <- read_sf('results/polyg_adm2_gdp_perCapita_1990_2022.gpkg') %>%
   # remove antarctica
   filter(!iso3 == 'ATA')
 
+# Natural Earth 50m country boundaries – download: https://www.naturalearthdata.com/downloads/50m-cultural-vectors/
 sf_adm0 <- read_sf("/Users/mkummu/R/GIS_data_common/ne_50m_adm0_all_ids/adm0_NatEarth_all_ids.shp") %>%
   # simplify the shapefile
   #rmapshaper::ms_simplify(keep = 0.05, keep_shapes = T) %>%

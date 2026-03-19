@@ -47,7 +47,7 @@ cntryID <- read_csv("data_in/countries_codes_and_coordinates.csv") %>%
 ##### 2. validate against OECD adm 2 level data -----
 
 # 2.1 read oecd gpkg
-
+# OECD TL3 shapefile – included in Zenodo input archive: https://doi.org/10.5281/zenodo.10976733
 v_oecd_tl3 <- vect('/Users/mkummu/R/migration_data_bee/data_in/OECD_TL3_2020_fixed_valid.gpkg')
 sf_oecd_tl3 <- st_read('/Users/mkummu/R/migration_data_bee/data_in/OECD_TL3_2020_fixed_valid.gpkg')
 

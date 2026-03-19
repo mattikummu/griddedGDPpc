@@ -49,6 +49,7 @@ if (file.exists('results/adm2_polyg_comb.gpkg')){
   adm2_polyg_comb <- st_read('results/adm2_polyg_comb.gpkg')
 } else { #create it
 
+  # GADM 4.1 boundaries – download: https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
   adm0_polyg <- read_sf('/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg', layer ='ADM_0') %>%
     mutate(GID_0 = ifelse(GID_0 == 'XKO', 'KSV', GID_0)) %>% # kosovo to correct iso3
     rename(iso3 = GID_0) %>%
@@ -118,10 +119,12 @@ if (file.exists('results/ext_data.RData')){
   ext(r_urbanisation_ext) <- ext(ref_raster_5arcmin)
 
 
+  # Subnational Gini dataset – download: https://zenodo.org/records/15055369
   r_gini_org <- rast('/Users/mkummu/R/subnatGini/results/rast_gini_disp_1990_2023.tif')
   # for year 2024, let's use 2023
   r_gini <- c(r_gini_org, subset(r_gini_org, 34))
 
+  # Travel time to cities – download: https://figshare.com/articles/dataset/Travel_time_to_cities_and_ports_in_the_year_2015/7638134
   r_travelTime <- rast('/Users/mkummu/R/GIS_data_common/travel_time_cities/travel_time_to_cities_11.tif')
   # sea to NA
   valueSea <- r_travelTime[1,1]

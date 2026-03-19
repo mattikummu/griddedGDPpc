@@ -76,6 +76,7 @@ gdp_adm0adm1_polyg <- st_read('data_gis/gdp_adm0adm1_polyg_feb2024.gpkg')
 
 gdp_adm0adm1_polyg_simpl <- st_read('data_gis/gdp_Adm0Adm1_polyg_simple.gpkg')
 
+# Natural Earth 50m country boundaries – download: https://www.naturalearthdata.com/downloads/50m-cultural-vectors/
 sf_adm0 <- read_sf("/Users/mkummu/R/GIS_data_common/ne_50m_adm0_all_ids/adm0_NatEarth_all_ids.shp") %>%
   # simplify the shapefile
   rmapshaper::ms_simplify(keep = 0.05, keep_shapes = T) %>%

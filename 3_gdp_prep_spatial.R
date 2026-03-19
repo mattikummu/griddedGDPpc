@@ -39,6 +39,7 @@ cntry_info_temp <- cntry_info %>%
   rename(country = country_name) %>%
   select(country,iso3)
 
+# GADM 4.1 boundaries – download: https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 GADM_data <- read_sf('/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg', layer ='ADM_0') %>%
   st_drop_geometry() %>%
   mutate(GID_0 = ifelse(GID_0 == 'XKO', 'KSV', GID_0))  # kosovo to correct iso3

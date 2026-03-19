@@ -43,6 +43,7 @@ prefect_CHN_distinct <- prefect_CHN %>%
   ))
 
 
+# GADM 4.1 boundaries – download: https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 adm1_CHN <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_1') %>%
   filter(GID_0 == 'CHN')
 
@@ -164,6 +165,7 @@ if (file.exists('data_gis/r_pop_GHS_1989_2024_5arcmin.tif')){
   r_pop <- rast('data_gis/r_pop_GHS_1989_2024_5arcmin.tif')
 } else { # create it
 
+  # GHS-POP population rasters – download: https://ghsl.jrc.ec.europa.eu/download.php?ds=pop
   r_popCount_GP <- rast("/Users/mkummu/R/GIS_data_common/GHS_POP/r_pop_GHS_1985_2025_5arcmin.tif")
 
   r_pop <- subset(r_popCount_GP,5:40)

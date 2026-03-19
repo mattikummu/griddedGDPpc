@@ -16,6 +16,7 @@ file_2002_2009 <- 'data_in/data_update_nov2025/PIB dos Munic¡pios - base de dad
 file_2010_2021 <- 'data_in/data_update_nov2025/PIB dos Munic¡pios - base de dados 2010-2021.xlsx'
 
 # Read adm2 reference
+# GADM 4.1 boundaries – download: https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 adm2_path <- '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg'
 adm2_BRA <- read_sf(adm2_path, layer = 'ADM_2') %>%
   filter(GID_0 == 'BRA') %>%
@@ -209,16 +210,16 @@ gdp_bra_full <- list(file_2002_2009, file_2010_2021) %>%
 gdp_bra_full_filter <- gdp_bra_full |> filter(muni_code == '1200450' )
 
 
-prefect_BRA_long <- gdp_bra_full %>% 
-  select(muni_code, year, gdp) %>% 
+prefect_BRA_long <- gdp_bra_full %>%
+  select(muni_code, year, gdp) %>%
   left_join(muni_unique %>% select(muni_code, GID_2))
 
 
 test <- prefect_BRA_long |> filter(GID_2 == 'BRA.1.20_2'  )
 
 
-# prefect_BRA_long <- prefect_BRA_wide %>% 
-#   pivot_longer(cols = -c(NAME_1, NL_NAME_1, NAME_2, NL_NAME_2, code, GID_2, GID_1), values_to = 'gdp', names_to = 'year') %>% 
+# prefect_BRA_long <- prefect_BRA_wide %>%
+#   pivot_longer(cols = -c(NAME_1, NL_NAME_1, NAME_2, NL_NAME_2, code, GID_2, GID_1), values_to = 'gdp', names_to = 'year') %>%
 #   arrange(GID_2)
 
 ref_raster_5arcmin <- rast(ncol=360*12, nrow=180*12)
@@ -229,52 +230,53 @@ if (file.exists('data_gis/r_pop_GHS_1989_2024_5arcmin.tif')){
   # load it
   r_pop <- rast('data_gis/r_pop_GHS_1989_2024_5arcmin.tif')
 } else { # create it
-  
+
+  # GHS-POP population rasters – download: https://ghsl.jrc.ec.europa.eu/download.php?ds=pop
   r_popCount_GP <- rast("/Users/mkummu/R/GIS_data_common/GHS_POP/r_pop_GHS_1985_2025_5arcmin.tif")
-  
+
   r_pop <- subset(r_popCount_GP,5:40)
-  
+
   writeRaster(r_pop,'data_gis/r_pop_GHS_1989_2024_5arcmin.tif', overwrite=TRUE)
-  
-  
-  
+
+
+
 }
 
 # population for each subnat
 
 timeSteps <- 2002:2021
 
-adm2_BRA_geo <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_2') %>% 
-  filter(GID_0 == 'BRA') %>% 
-  select(GID_0, GID_1, NAME_1,NL_NAME_1, GID_2, NAME_2, NL_NAME_2) %>% 
+adm2_BRA_geo <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_2') %>%
+  filter(GID_0 == 'BRA') %>%
+  select(GID_0, GID_1, NAME_1,NL_NAME_1, GID_2, NAME_2, NL_NAME_2) %>%
   arrange(NAME_1, NAME_2)
 
 v_subnatPop <- exactextractr::exact_extract(subset(r_pop,14:33), adm2_BRA_geo, fun = 'sum')
 
-v_subnatPop_comb <- adm2_BRA_geo %>% 
-  st_drop_geometry() %>% 
-  select(GID_1, GID_2) %>% 
-  bind_cols(v_subnatPop) %>% 
-  #select(-ID) %>% 
-  set_names(c('GID_1', 'GID_2', paste0(timeSteps))) %>% 
+v_subnatPop_comb <- adm2_BRA_geo %>%
+  st_drop_geometry() %>%
+  select(GID_1, GID_2) %>%
+  bind_cols(v_subnatPop) %>%
+  #select(-ID) %>%
+  set_names(c('GID_1', 'GID_2', paste0(timeSteps))) %>%
   pivot_longer(names_to = 'year', values_to = 'pop', -c('GID_2', 'GID_1'))
   # # mutate(pop2021 = pop2020) %>%
-  # mutate(pop1989 = pop1990) %>% 
-  # mutate(pop2022 = pop2020) %>% 
+  # mutate(pop1989 = pop1990) %>%
+  # mutate(pop2022 = pop2020) %>%
   #select(GID_nmbr, cntry_id, paste0('pop',1989:2024))
 
 # gdp per capita
 
-prefect_BRA_long_combPop <- prefect_BRA_long %>% 
-  left_join(v_subnatPop_comb) %>% 
-  mutate(gdp_x_pop = gdp * pop) %>% 
-  group_by(GID_1, year) %>% 
-  mutate(adm1_pop = sum(pop, na.rm = TRUE)) %>% 
-  mutate(adm1_gdp_x_pop = sum(gdp_x_pop, na.rm = TRUE)) %>% 
-  mutate(adm1_gdp_pc = adm1_gdp_x_pop / adm1_pop) %>% 
-  ungroup() %>% 
-  mutate(adm2_gdp_ratio = gdp / adm1_gdp_pc) %>% 
-  select(GID_1, GID_2, year, adm2_gdp_ratio) |> 
+prefect_BRA_long_combPop <- prefect_BRA_long %>%
+  left_join(v_subnatPop_comb) %>%
+  mutate(gdp_x_pop = gdp * pop) %>%
+  group_by(GID_1, year) %>%
+  mutate(adm1_pop = sum(pop, na.rm = TRUE)) %>%
+  mutate(adm1_gdp_x_pop = sum(gdp_x_pop, na.rm = TRUE)) %>%
+  mutate(adm1_gdp_pc = adm1_gdp_x_pop / adm1_pop) %>%
+  ungroup() %>%
+  mutate(adm2_gdp_ratio = gdp / adm1_gdp_pc) %>%
+  select(GID_1, GID_2, year, adm2_gdp_ratio) |>
   ## put ratio as 1, when NA
   mutate(adm2_gdp_ratio = ifelse(is.na(adm2_gdp_ratio), 1, adm2_gdp_ratio))
 
@@ -283,11 +285,11 @@ prefect_BRA_long_combPop <- prefect_BRA_long %>%
 years_full <- as.character(1990:2024)
 
 # meta of admins (use prefect_BRA_long to include admins even if some years missing)
-meta_admin <- prefect_BRA_long %>% 
+meta_admin <- prefect_BRA_long %>%
   left_join(adm2_BRA_geo |> st_drop_geometry() |> select("GID_1", "GID_2")) %>%
   distinct(GID_1, GID_2)
 
-meta_admin_adm2 <-  adm2_BRA_geo |> st_drop_geometry() |> select("GID_1", "GID_2") %>% 
+meta_admin_adm2 <-  adm2_BRA_geo |> st_drop_geometry() |> select("GID_1", "GID_2") %>%
   left_join(prefect_BRA_long) %>%
   distinct(GID_1, GID_2)
 
@@ -304,18 +306,18 @@ prefect_BRA_long_combPop_allYrs <- full_grid %>%
   left_join(prefect_BRA_long_combPop |> select(GID_2,year,adm2_gdp_ratio)) %>%
   # add value 1 for missing iso3s
   mutate(adm2_gdp_ratio = ifelse(is.na(adm2_gdp_ratio) & GID_2 %in% missing_ISO3$GID_2, 1, adm2_gdp_ratio)) %>%
-  arrange(GID_2, year) 
-  
+  arrange(GID_2, year)
+
 
 # interpolate ratio
-adm1_data_GDP_interpRatio <- prefect_BRA_long_combPop_allYrs %>% 
-  # pivot_longer(-c(iso3, GID_nmbr), names_to = 'year', values_to = 'ratioAdm1Adm0') %>% 
+adm1_data_GDP_interpRatio <- prefect_BRA_long_combPop_allYrs %>%
+  # pivot_longer(-c(iso3, GID_nmbr), names_to = 'year', values_to = 'ratioAdm1Adm0') %>%
   # interpolate
-  group_by(GID_2) %>% 
+  group_by(GID_2) %>%
   #https://stackoverflow.com/questions/70155104/interpolate-na-values-when-column-ends-on-na
-  mutate(adm2_gdp_ratio = na.approx(adm2_gdp_ratio, maxgap = Inf, rule = 2)) %>% 
-  ungroup() 
-  #rename(!!as.name(outVarName) := ratioAdm1Adm0) %>% 
+  mutate(adm2_gdp_ratio = na.approx(adm2_gdp_ratio, maxgap = Inf, rule = 2)) %>%
+  ungroup()
+  #rename(!!as.name(outVarName) := ratioAdm1Adm0) %>%
   #select(iso3, GID_nmbr, year, !!as.name(outVarName))
 
 ### calculate the GDP using adm1 level data and the ratio
@@ -329,32 +331,32 @@ adm1_data_GDP_interpRatio <- prefect_BRA_long_combPop_allYrs %>%
 yearsIn <- 1990:2024
 v_adm1 <- vect(paste0('results/polyg_adm1_gdp_perCapita_',yearsIn[1],'_',yearsIn[length(yearsIn)],'.gpkg'))
 
-# t_GID_nmbr_GID_1 <- read_csv('downscalingMatlab/adm2DataForDownscaling.csv') |> 
-#   filter(iso3 == 'BRA') |> 
-#   distinct(GID_2, GID_nmbr) |> 
-#   left_join(meta_admin) |> 
-#   distinct(GID_nmbr, GID_1) |> 
+# t_GID_nmbr_GID_1 <- read_csv('downscalingMatlab/adm2DataForDownscaling.csv') |>
+#   filter(iso3 == 'BRA') |>
+#   distinct(GID_2, GID_nmbr) |>
+#   left_join(meta_admin) |>
+#   distinct(GID_nmbr, GID_1) |>
 #   arrange(GID_nmbr) |>
 #   drop_na()
 
-t_GID_nmbr_GID_1 <- vect("results/gisData_GDP_pc_combined_feb2024.gpkg") |> 
-  as_tibble() |> 
-  filter(iso3 == 'BRA') |> 
-  distinct(GID_nmbr, GID_1) 
+t_GID_nmbr_GID_1 <- vect("results/gisData_GDP_pc_combined_feb2024.gpkg") |>
+  as_tibble() |>
+  filter(iso3 == 'BRA') |>
+  distinct(GID_nmbr, GID_1)
 
-t_adm1 <- as_tibble(v_adm1) |> 
+t_adm1 <- as_tibble(v_adm1) |>
   filter(iso3 == 'BRA') %>%
-  select(iso3, GID_nmbr, Subnat, paste0(1990:2024) ) |> 
-  pivot_longer(cols = -c(iso3, GID_nmbr, Subnat), names_to = 'year', values_to = 'adm1_gdp_pc') %>% 
-  mutate(year = as.character(year)) |> 
+  select(iso3, GID_nmbr, Subnat, paste0(1990:2024) ) |>
+  pivot_longer(cols = -c(iso3, GID_nmbr, Subnat), names_to = 'year', values_to = 'adm1_gdp_pc') %>%
+  mutate(year = as.character(year)) |>
   left_join(t_GID_nmbr_GID_1, by = 'GID_nmbr')
 
 
 
 # combine adm1 gdp pc and adm2 ratio
 
-ad2_comb_adm1_data <- adm1_data_GDP_interpRatio |> 
-  left_join(t_adm1, by = c('GID_1', 'year')) |> 
+ad2_comb_adm1_data <- adm1_data_GDP_interpRatio |>
+  left_join(t_adm1, by = c('GID_1', 'year')) |>
   mutate(adm2_gdp_pc = adm1_gdp_pc * adm2_gdp_ratio)
 
 # write to file

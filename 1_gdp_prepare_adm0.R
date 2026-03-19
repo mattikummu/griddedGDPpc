@@ -143,6 +143,7 @@ if (file.exists('data_GIS/p_adm0_centroids.gpkg')) {
   p_adm0_centroids <- vect('data_GIS/p_adm0_centroids.gpkg')
 
 } else { # create it
+  # GADM 4.1 boundaries – download: https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
   v_cntryGIS <- terra::simplifyGeom(vect('/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg', layer = 'ADM_0'))
   v_cntryGIS_EE <- project(v_cntryGIS, '+proj=eqearth')
   terra::writeVector(v_cntryGIS, 'data_GIS/v_cntryGISsimplif.gpkg')
@@ -194,6 +195,7 @@ adm0_polyg <- read_sf('/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg', la
 # will be correctly represented. Also Hong Kong and Macao will this way be there as
 # individual countries
 
+# GADM 3.6 boundaries – download: https://biogeo.ucdavis.edu/data/gadm3.6/gadm36_levels_gpkg.zip
 adm0_gadm_old <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/gadm_level0.gpkg') %>%
   rename(iso3 = GID_0) %>%
   rename(COUNTRY = NAME_0) %>%

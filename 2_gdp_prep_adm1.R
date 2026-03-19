@@ -233,6 +233,7 @@ subnat_data[cols.num] <- sapply(subnat_data[cols.num],as.numeric)
 
 id_subnat <- unique(subnat_data$iso3)
 
+# GADM 4.1 boundaries – download: https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 gis_data_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_1') %>%
   #st_drop_geometry() %>%
   select(GID_0,COUNTRY,NAME_1,GID_1) %>%
@@ -247,6 +248,7 @@ gis_data_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg'
 # below is also code (commented out now) for another approach where we unite them with those that we have data for
 
 
+# GADM 3.6 boundaries – download: https://biogeo.ucdavis.edu/data/gadm3.6/gadm36_levels_gpkg.zip
 adm1_gadm_old <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/gadm_lev1.gpkg') %>%
   #st_drop_geometry() %>%
   rename(iso3 = GID_0) %>%
@@ -753,6 +755,7 @@ subnat_data_BHS <- read.xlsx('data_in/BHS_adm1.xlsx', sheet='Sheet1', startRow =
 
 
 
+# DOSE v2 shapefiles – download: https://zenodo.org/records/7573249
 gis_data_BHS <- read_sf( '/Users/mkummu/R/subnat_gdp_2023/data_gis/DOSE_shapefiles.gpkg' ) %>%
   #st_drop_geometry() %>%
   filter(GID_0 == 'BHS') %>%
@@ -836,6 +839,7 @@ if (file.exists('data_gis/r_pop_GHS_1989_2024_5arcmin.tif')){
   r_pop <- rast('data_gis/r_pop_GHS_1989_2024_5arcmin.tif')
 } else { # create it
 
+  # GHS-POP population rasters – download: https://ghsl.jrc.ec.europa.eu/download.php?ds=pop
   r_popCount_GP <- rast("/Users/mkummu/R/GIS_data_common/GHS_POP/r_pop_GHS_1985_2025_5arcmin.tif")
 
   r_pop <- subset(r_popCount_GP,5:40)

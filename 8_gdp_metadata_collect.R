@@ -33,6 +33,7 @@ count(adm0_source_comb, source)
 
 # add to metadata
 
+# GADM 4.1 boundaries – download: https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 adm0_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  layer = 'ADM_0') %>%
   st_drop_geometry() %>%
   select(GID_0,COUNTRY) %>%
@@ -44,6 +45,7 @@ adm0_GADM <- read_sf( '/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg' ,  
 # will be correctly represented. Also Hong Kong and Macao will this way be there as
 # individual countries
 
+# GADM 3.6 boundaries – download: https://biogeo.ucdavis.edu/data/gadm3.6/gadm36_levels_gpkg.zip
 adm0_gadm_old <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/gadm_level0.gpkg') %>%
   st_drop_geometry() %>%
   rename(iso3 = GID_0) %>%
@@ -214,6 +216,7 @@ nrow(admAreasDownscaling)
 
 # 4.1 collect data
 
+# Natural Earth 50m country boundaries – download: https://www.naturalearthdata.com/downloads/50m-cultural-vectors/
 sf_adm0 <- read_sf("/Users/mkummu/R/GIS_data_common/ne_50m_adm0_all_ids/adm0_NatEarth_all_ids.shp") %>%
   # simplify the shapefile
   #rmapshaper::ms_simplify(keep = 0.05, keep_shapes = T) %>%
