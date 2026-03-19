@@ -1,7 +1,7 @@
 
 f_gdp_data2raster_adm2 <- function(inYears = 1990:1991, 
-                                  IndexName = 'gdp_pc', 
-                                  inDataAdm2 = adm2_gdp) {
+                                   IndexName = 'gdp_pc', 
+                                   inDataAdm2 = adm2_gdp_harm) {
   
   coll_raster = rast()
   
@@ -14,12 +14,13 @@ f_gdp_data2raster_adm2 <- function(inYears = 1990:1991,
   tempDataAdm2 <- inDataAdm2 %>% 
     select(-c(cntry_id, rowNumb,gdp_adm2, corrRatio)) %>% 
     left_join(rowNmb_adm2ID) %>% 
-    rename(!!IndexName := gdp_adm2corr)# %>% 
-  #filter(!is.na(adm2ID)) 
+    rename(!!IndexName := gdp_adm2corr) %>% 
+    filter(!is.na(adm2ID)) %>% 
+    filter(!is.na(rowNmb)) 
   
-  temp2 <- tempDataAdm2 %>% 
-    filter(grepl('SJM',GID_2))
-  temp2
+  # temp2 <- tempDataAdm2 %>% 
+  #   filter(grepl('AUT.5.',GID_2))
+  # temp2
   
   # get all ids
   all_ids <- unique(r_gdp_adm2_polyg_5arcmin) %>% 
@@ -34,7 +35,7 @@ f_gdp_data2raster_adm2 <- function(inYears = 1990:1991,
     # check adm0 areas for which we do not have data, and put those to NA in the raster
     idWithData <- tempDataAdm2_selYear %>% 
       as_tibble() %>% 
-      filter(!is.na(gdp_pc)) %>% 
+      filter(!is.na(!!IndexName)) %>% 
       dplyr::select(rowNmb) %>% 
       distinct()
     
@@ -51,11 +52,14 @@ f_gdp_data2raster_adm2 <- function(inYears = 1990:1991,
     temp_id <-  as.numeric(tempDataAdm2_selYear$rowNmb)
     temp_v <- as.numeric(tempDataAdm2_selYear[[IndexName]])
     
+    
     # reclassify
     temp_raster <- classify(r_gdp_adm2_polyg_5arcmin_mod,
                             cbind(temp_id, temp_v))
-    
-    # plot(temp_raster)
+    # temp <-  cbind(temp_id, temp_v) %>%
+    #   as_tibble() %>%
+    #   filter(is.na(temp_id))
+    #plot(temp_raster)
     
     terra::add(coll_raster) <- temp_raster
   }

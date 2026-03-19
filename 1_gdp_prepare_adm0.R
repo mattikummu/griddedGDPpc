@@ -1,8 +1,7 @@
-
-# prepare national data for GDP per cap
-
-# code for subnational GDP per capita dataset
-# creator: Matti Kummu, Aalto University (matti.kummu@aalto.fi)
+### 1_gdp_prepare_adm0.R
+# Prepare and harmonise national (admin-0) GDP per capita data from WB, IMF and CIA sources,
+# interpolate/extrapolate to a complete 1990–2024 annual time series, and save results.
+# Subnational GDP per capita dataset — Matti Kummu, Aalto University (matti.kummu@aalto.fi)
 
 library(raster)
 library(openxlsx)
@@ -21,7 +20,7 @@ library(dplyr) #
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # set time steps
-timestep <- c(seq(1990, 2022))
+timestep <- c(seq(1990, 2024))
 step <- c(seq(1,length(timestep)))
 
 
@@ -29,43 +28,54 @@ step <- c(seq(1,length(timestep)))
 
 # 1.1. load cntry_info
 cntry_info <- read_csv("data_in/cntry_ids.csv") %>%
-  as_tibble() %>% 
-  rename(iso_code = country_code) %>% 
+  as_tibble() %>%
+  rename(iso_code = country_code) %>%
   # change iso_code for kosovo to match the one in data
-  mutate(iso_code = ifelse(iso_code == 'XKX','KSV',iso_code)) %>%  
+  mutate(iso_code = ifelse(iso_code == 'XKX','KSV',iso_code)) %>%
   # northern cyprus
-  mutate(iso_code = ifelse(iso_code == 'XNC','ZNC',iso_code)) %>%  
+  mutate(iso_code = ifelse(iso_code == 'XNC','ZNC',iso_code)) %>%
   distinct(iso_code, .keep_all = T)
 
 
 # 1.2 load national databases
 
 # World Bank national data
-adm0_WB_reg <- readxl::read_excel('data_in/WB_gdp_pc_ppp_2017USD.xls', skip = 0, 
-                                  sheet = 'Metadata - Countries') %>% 
-  filter(is.na(Region)) %>% 
-  rename(iso3 = 'Country Code') 
+adm0_WB_reg <- readxl::read_excel('data_in/WB_gdp_pc_ppp_2017USD.xls', skip = 0,
+                                  sheet = 'Metadata - Countries') %>%
+  filter(is.na(Region)) %>%
+  rename(iso3 = 'Country Code')
 
-adm0_WB <- readxl::read_excel('data_in/P_Data_Extract_From_World_Development_Indicators.xlsx', skip = 0) %>% 
-  as_tibble() %>% 
-  rename(iso3 = 'Country Code') %>% 
-  mutate(iso3 = ifelse(iso3 == 'XKX', 'KSV', iso3)) %>% 
-  select(-c('Series Name', 'Series Code', 'Country Name')) %>% 
+adm0_WB <- readxl::read_excel('data_in/API_NY.GDP.PCAP.PP.CD_DS2_en_excel_v2_258698.xls', skip = 3, ) %>%
+  as_tibble() %>%
+  rename(iso3 = 'Country Code') %>%
+  mutate(iso3 = ifelse(iso3 == 'XKX', 'KSV', iso3)) %>%
+  select(-c('Indicator Name', 'Indicator Code', 'Country Name')) %>%
   # filter out the regional values
-  filter(!iso3 %in% adm0_WB_reg$iso3) %>% 
-  set_names(c('iso3', paste0(1990:2022)))
+  filter(!iso3 %in% adm0_WB_reg$iso3) %>%
+  select(iso3, paste0(timestep)) %>%
+  filter(!iso3 %in% c('TCA'))  # longer data in CIAs
 
 
+imfFile <- "data_in/WEOApr2025all.xls"
+#
 
 # IMF national data
-adm0_IMF <- readxl::read_excel('data_in/IMF_gdp_pc_ppp_2017USD.xlsx', skip = 3) %>% 
-  rename(iso3 = 'Country - ISO') %>% 
-  mutate(iso3 = ifelse(iso3 == 'UVK', 'KSV', iso3)) %>% 
-  select(c(iso3, paste0(1990:2021)))
+
+adm0_IMF <- readxl::read_excel('data_in/WEOApr2025all.xls', skip = 0, na = c("n/a", "NA", "#N/A", "")) %>%
+  rename(iso3 = ISO) %>%
+  rename(WEOcode = 'WEO Subject Code') %>%
+  filter(WEOcode == 'NGDPRPPPPC') %>%
+  mutate(iso3 = ifelse(iso3 == 'UVK', 'KSV', iso3)) %>%
+  select(c(iso3, paste0(timestep))) %>%
+  mutate(across(
+    starts_with("19") | starts_with("20"),
+    readr::parse_number
+  ))
+
 
 
 # CIA WF national data
-adm0_CIA <- readxl::read_excel('data_in/IndexMundi_CIA_WF_gdp_pc_ppp.xlsx', skip = 8) %>% 
+adm0_CIA <- readxl::read_excel('data_in/IndexMundi_CIA_WF_gdp_pc_ppp.xlsx', skip = 8) %>%
   select(-Country)
 
 
@@ -74,51 +84,53 @@ adm0_CIA <- readxl::read_excel('data_in/IndexMundi_CIA_WF_gdp_pc_ppp.xlsx', skip
 # let's combine the WB, IMF and CIA data
 # https://stackoverflow.com/questions/72940045/replace-na-in-a-table-with-values-in-column-with-another-table-by-conditions-in
 
-adm0_comb <- adm0_WB %>% 
+adm0_comb <- adm0_WB %>%
   # add countries from IMF that do not exist in WB (Taiwan, West Bank)
-  bind_rows(adm0_IMF %>% filter(!iso3 %in% adm0_WB$iso3)) %>% 
+  bind_rows(adm0_IMF %>% filter(!iso3 %in% adm0_WB$iso3)) %>%
   # add countries from CIA that do not exist in WB (Western Sahara)
-  bind_rows(adm0_CIA %>% filter(!iso3 %in% adm0_WB$iso3)) %>% 
+  bind_rows(adm0_CIA %>% filter(!iso3 %in% unique(c(adm0_WB$iso3,adm0_IMF$iso3)))) %>%
   # Replace NA values in WB from data in IMF
-  dplyr::rows_patch(adm0_IMF, by = 'iso3') %>% 
+  dplyr::rows_patch(adm0_IMF, by = 'iso3') %>%
   # Replace NA values in WB + IMF from data in CIA
-  dplyr::rows_patch(adm0_CIA, by = 'iso3') %>% 
+  dplyr::rows_patch(adm0_CIA, by = 'iso3') %>%
   filter(!is.na(iso3))
 
 
 write_csv(adm0_comb, 'results/adm0_reported_data.csv')
 
 
-adm0_source_WB <- adm0_WB %>% 
-  pivot_longer(-'iso3', names_to = 'year', values_to = 'gdp_pc') %>% 
-  drop_na() %>% 
-  distinct(iso3) %>% 
-  mutate(source = 'WB') 
+adm0_source_WB <- adm0_WB %>%
+  pivot_longer(-'iso3', names_to = 'year', values_to = 'gdp_pc') %>%
+  drop_na() %>%
+  distinct(iso3) %>%
+  mutate(source = 'WB')
 
-adm0_source_IMF <- adm0_IMF %>% 
-  filter(!iso3 %in% adm0_source_WB$iso3) %>% 
-  pivot_longer(-'iso3', names_to = 'year', values_to = 'gdp_pc') %>% 
-  drop_na() %>% 
-  distinct(iso3) %>% 
-  mutate(source = 'IMF') 
+adm0_source_IMF <- adm0_IMF %>%
+  filter(!iso3 %in% adm0_source_WB$iso3) %>%
+  pivot_longer(-'iso3', names_to = 'year', values_to = 'gdp_pc') %>%
+  drop_na() %>%
+  distinct(iso3) %>%
+  mutate(source = 'IMF')
 
-adm0_source_CIA <- adm0_CIA %>% 
-  filter(!iso3 %in% adm0_source_WB$iso3) %>% 
-  filter(!iso3 %in% adm0_source_IMF$iso3) %>% 
-  pivot_longer(-'iso3', names_to = 'year', values_to = 'gdp_pc') %>% 
-  drop_na() %>% 
-  distinct(iso3) %>% 
-  mutate(source = 'CIA') 
-  
-adm0_source_comb <- bind_rows(adm0_source_WB, adm0_source_IMF, adm0_source_CIA) %>% 
+adm0_source_CIA <- adm0_CIA %>%
+  filter(!iso3 %in% adm0_source_WB$iso3) %>%
+  filter(!iso3 %in% adm0_source_IMF$iso3) %>%
+  pivot_longer(-'iso3', names_to = 'year', values_to = 'gdp_pc') %>%
+  drop_na() %>%
+  distinct(iso3) %>%
+  mutate(source = 'CIA')
+
+adm0_source_comb <- bind_rows(adm0_source_WB, adm0_source_IMF, adm0_source_CIA) %>%
   arrange(iso3)
 
 write_csv(adm0_source_comb, 'results/adm0_source_comb.csv')
 
 #### 3. interpolation and extrapolation -----
 
-adm0_comb_long <- adm0_comb %>% 
+adm0_comb_long <- adm0_comb %>%
   pivot_longer(-iso3, names_to = 'year', values_to = 'gdp_pc')
+
+write_csv(adm0_comb_long %>% drop_na(), 'results/adm0_reported_data_long.csv')
 
 # load function
 
@@ -129,7 +141,7 @@ source('functions/f_interpExtrap_adm0.R')
 
 if (file.exists('data_GIS/p_adm0_centroids.gpkg')) {
   p_adm0_centroids <- vect('data_GIS/p_adm0_centroids.gpkg')
-  
+
 } else { # create it
   v_cntryGIS <- terra::simplifyGeom(vect('/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg', layer = 'ADM_0'))
   v_cntryGIS_EE <- project(v_cntryGIS, '+proj=eqearth')
@@ -143,9 +155,9 @@ if (file.exists('data_GIS/p_adm0_centroids.gpkg')) {
 
 # apply function
 
-gdp_pc <- f_interpExtrap_adm0(nameIndic = 'gdp_pc')
+gdp_pc <- f_interpExtrap_adm0(nameIndic = 'gdp_pc', timestep = timestep)
 
-gdp_pc_wide <- gdp_pc %>% 
+gdp_pc_wide <- gdp_pc %>%
   pivot_wider(names_from = 'year', values_from = 'gdp_pc')
 
 
@@ -164,49 +176,49 @@ fwrite(gdp_pc_wide, 'results/adm0_gdp_pc_wide_interpExtrap.csv')
 
 adm0_comb_interpExtrap <- read.csv( 'results/adm0_gdp_pc_long_interpExtrap.csv')
 
-n_cntry <- adm0_comb_interpExtrap %>% 
+n_cntry <- adm0_comb_interpExtrap %>%
   distinct(iso3)
 
 # 4.2 modify data
 
-# some of the adm1 levels are divided to those that are officially in a country and those that are 
+# some of the adm1 levels are divided to those that are officially in a country and those that are
 # on conflict zones (between CHN, IND and PAK)
 
 
-adm0_polyg <- read_sf('/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg', layer ='ADM_0') %>% 
+adm0_polyg <- read_sf('/Users/mkummu/R/GIS_data_common/gadm_410-levels.gpkg', layer ='ADM_0') %>%
   mutate(GID_0 = ifelse(GID_0 == 'XKO', 'KSV', GID_0)) %>% # kosovo to correct iso3
-  rename(iso3 = GID_0) # %>% 
+  rename(iso3 = GID_0) # %>%
 
 
 # for China, Pakistan, India let's use older version of GADM so that these Z areas
 # will be correctly represented. Also Hong Kong and Macao will this way be there as
 # individual countries
 
-adm0_gadm_old <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/gadm_level0.gpkg') %>% 
-  rename(iso3 = GID_0) %>% 
-  rename(COUNTRY = NAME_0) %>% 
+adm0_gadm_old <- read_sf('/Users/mkummu/R/migration_data_bee/data_in/gadm_level0.gpkg') %>%
+  rename(iso3 = GID_0) %>%
+  rename(COUNTRY = NAME_0) %>%
   filter(iso3 %in% c('CHN', 'PAK', 'IND', 'HKG', 'MAC'))
 
-sf_adm0_polyg_diss <- adm0_polyg %>% 
-  filter(!iso3 %in% c('CHN', 'PAK', 'IND', 'HKG', 'MAC')) %>% 
+sf_adm0_polyg_diss <- adm0_polyg %>%
+  filter(!iso3 %in% c('CHN', 'PAK', 'IND', 'HKG', 'MAC')) %>%
   bind_rows(adm0_gadm_old)
 
 
 # 4.3 join cntry info
 
-adm0_polyg_final <- sf_adm0_polyg_diss %>% 
-  #st_drop_geometry() %>% 
-  rename(Country = COUNTRY) %>% 
-  mutate(iso3 = ifelse(iso3 == 'XKO','KSV',iso3)) %>% 
+adm0_polyg_final <- sf_adm0_polyg_diss %>%
+  #st_drop_geometry() %>%
+  rename(Country = COUNTRY) %>%
+  mutate(iso3 = ifelse(iso3 == 'XKO','KSV',iso3)) %>%
   filter(iso3 != 'ALA' & iso3 != 'XCA' & iso3 != 'ATA') %>%  # remove Åland (part of Finland); Caspian Sea (not needed), Antarctica
-  mutate(GID_nmbr = paste0(iso3,'t')) %>% 
-  left_join(cntry_info[,c(2,4)] %>%  rename(iso3 = iso_code)) %>% 
-  mutate(GID_nmbr = cntry_id) %>% 
-  filter(!is.na(GID_nmbr)) %>% 
+  mutate(GID_nmbr = paste0(iso3,'t')) %>%
+  left_join(cntry_info[,c(2,4)] %>%  rename(iso3 = iso_code)) %>%
+  mutate(GID_nmbr = cntry_id) %>%
+  filter(!is.na(GID_nmbr)) %>%
   select(Country, GID_nmbr, iso3,GID_nmbr, geom)
 
 
-temp <- adm0_polyg_final %>% 
+temp <- adm0_polyg_final %>%
   st_drop_geometry()
 
 
@@ -218,21 +230,21 @@ temp <- adm0_polyg_final %>%
 if (file.exists('data_gis/gdp_Adm0_raster_5arcmin.tif')){
   # load it
   r_gdp_adm0_polyg_5arcmin <- rast('data_gis/gdp_Adm0_raster_5arcmin.tif')
-} else { 
+} else {
   # create it
-  
+
   #create ref raster
   # ref_raster_5arcmin <- rast(ncol=360*12, nrow=180*12)
   ref_raster_1arcmin <- rast(ncol=360*60, nrow=180*60)
   # rasterise to 1 arc min resolutions
-  
+
   r_gdp_adm0_polyg_1arcmin <-  rasterize(adm0_polyg_final,ref_raster_1arcmin,field="GID_nmbr")
-  
-  
+
+
   # aggregate to 5 arc-min
   r_gdp_adm0_polyg_5arcmin <- terra::aggregate(r_gdp_adm0_polyg_1arcmin,fact=5,fun=modal,na.rm=T)
-  
-  
+
+
   # write raster
   terra::writeRaster(r_gdp_adm0_polyg_5arcmin,'data_gis/gdp_adm0_raster_5arcmin.tif', gdal="COMPRESS=LZW",overwrite=TRUE)
 }
@@ -244,11 +256,11 @@ source("functions/f_gdp_data2raster_adm0.R")
 varNames <- c('gdp_pc' )
 
 for (iVar in 1:length(varNames)) {
-  
-  rast_varName <- f_gdp_data2raster_adm0(inYears = 1990:2022, 
-                                        IndexName = varNames[iVar], 
-                                        inDataAdm0 = adm0_comb_interpExtrap) 
-  
+
+  rast_varName <- f_gdp_data2raster_adm0(inYears = 1990:2024,
+                                         IndexName = varNames[iVar],
+                                         inDataAdm0 = adm0_comb_interpExtrap)
+
 }
 
 
@@ -259,17 +271,17 @@ for (iVar in 1:length(varNames)) {
 
 if (file.exists('data_gis/gdp_adm0_polyg_simple.gpkg')){
   # load it
-  gdp_adm0_polyg_simpl <- st_read('data_gis/gdp_adm0_polyg_simple.gpkg') 
-} else { 
+  gdp_adm0_polyg_simpl <- st_read('data_gis/gdp_adm0_polyg_simple.gpkg')
+} else {
   # create it
-  
+
   p <- as.polygons(r_gdp_adm0_polyg_5arcmin)
   as.data.frame(p)
-  
+
   writeVector(p, 'data_gis/gdp_adm0_polyg_simple.gpkg', overwrite=T)
-  
-  gdp_adm0_polyg_simpl <- st_read('data_gis/gdp_adm0_polyg_simple.gpkg') 
-  
+
+  gdp_adm0_polyg_simpl <- st_read('data_gis/gdp_adm0_polyg_simple.gpkg')
+
 }
 
 
@@ -282,14 +294,9 @@ source('functions/f_gdp_data2gpkg_adm0.R')
 varNames <- c('gdp_pc')
 
 for (iVar in 1:length(varNames)) {
-  
-  vect_varName <- f_gdp_data2gpkg_adm0(inYears = 1990:2022, 
-                                      IndexName = varNames[iVar], 
-                                      inDataAdm0 = adm0_comb_interpExtrap) 
-  
+
+  vect_varName <- f_gdp_data2gpkg_adm0(inYears = 1990:2024,
+                                       IndexName = varNames[iVar],
+                                       inDataAdm0 = adm0_comb_interpExtrap)
+
 }
-
-
-
-
-

@@ -1,7 +1,9 @@
 
-f_gdp_data2gpkg_adm2 <- function(inYears = 1990:2022, IndexName = 'gdp_pc', 
-                                inDataAdm2) {
-  
+f_gdp_data2gpkg_adm2 <- function(inYears = 1990:2022, 
+                                 IndexName = 'gdp_pc', 
+                                 inDataAdm2, 
+                                 gdp_adm2_polyg = gdp_adm2_polyg_simpl_1arcmin,
+                                 nameFile = 'polyg_adm2_gdp_perCapita_1arcmin_') {
   
   rowNmb_adm2ID <- sf::read_sf('data_gis/adm2_polyg_comb_ID.gpkg' ) %>% 
     st_drop_geometry() %>% 
@@ -9,27 +11,27 @@ f_gdp_data2gpkg_adm2 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     distinct(adm2ID, .keep_all = T)
   
   
-  tempDataAdm2 <- inDataAdm2 %>% 
+  tempDataAdm2_harm <- inDataAdm2 %>% 
     select(-c(cntry_id, rowNumb,gdp_adm2, corrRatio)) %>% 
     left_join(rowNmb_adm2ID) %>% 
     rename(!!IndexName := gdp_adm2corr) %>% 
     distinct(adm2ID, year, .keep_all = T)
   
   
-  ### apply the harmonisation ratio
-  
-  tempDataAdm2_harm <- tempDataAdm2  %>% 
-    mutate(year = as.numeric(year)) %>% 
-    mutate(GID_nmbr = as.numeric(GID_nmbr)) %>% 
-    left_join(sf_adm0_comb_adm1_ratio %>% 
-                filter(iso3 %in% unique(tempDataAdm2$iso3)) %>% 
-                select(GID_nmbr, year, ratio) %>% 
-                distinct(GID_nmbr, year, .keep_all = T) %>% 
-                mutate(year = as.numeric(year)) %>% 
-                mutate(GID_nmbr = as.numeric(GID_nmbr))) %>% 
-    mutate(ratio = ifelse(is.na(ratio), 1, ratio)) %>% 
-    rename(gdp_org = gdp_pc) %>% 
-    mutate(gdp_pc = gdp_org / ratio)
+  # ### apply the harmonisation ratio
+  # 
+  # tempDataAdm2_harm <- tempDataAdm2  %>% 
+  #   mutate(year = as.numeric(year)) %>% 
+  #   mutate(GID_nmbr = as.numeric(GID_nmbr)) %>% 
+  #   left_join(sf_adm0_comb_adm1_ratio %>% 
+  #               filter(iso3 %in% unique(tempDataAdm2$iso3)) %>% 
+  #               select(GID_nmbr, year, ratio) %>% 
+  #               distinct(GID_nmbr, year, .keep_all = T) %>% 
+  #               mutate(year = as.numeric(year)) %>% 
+  #               mutate(GID_nmbr = as.numeric(GID_nmbr))) %>% 
+  #   mutate(ratio = ifelse(is.na(ratio), 1, ratio)) %>% 
+  #   rename(gdp_org = gdp_pc) %>% 
+  #   mutate(gdp_pc = gdp_org / ratio)
   
   # calculate trend
   
@@ -42,6 +44,7 @@ f_gdp_data2gpkg_adm2 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     ungroup() %>% 
     select(-year) %>% 
     mutate(log10_gdp_pc = log10(gdp_pc)) %>% 
+    #filter(is.na(log10_gdp_pc)) %>% 
     nest(data = -adm2ID) %>% 
     mutate(
       model = map(data,  ~ mblm::mblm(log10_gdp_pc ~ time, data = .))
@@ -53,6 +56,7 @@ f_gdp_data2gpkg_adm2 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     filter(term == 'time') %>% 
     select(adm2ID, estimate, p.value)
   
+  tempDataAdm2_trend %>% filter()
   
   gdp_adm2_polyg_noGeom <- adm2_polyg_comb %>%
     st_drop_geometry() %>% 
@@ -72,13 +76,13 @@ f_gdp_data2gpkg_adm2 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     left_join(tempDataAdm2_trend) %>% 
     mutate(p.value = p.value < 0.05) %>% 
     mutate(slope = p.value * estimate) %>% 
-    right_join(gdp_adm2_polyg_simpl) %>% 
+    right_join(gdp_adm2_polyg) %>% 
     left_join(gdp_adm2_polyg_noGeom) %>% 
     select(GID_2, adm2ID, iso3, NAME_2, slope, everything()) %>% 
     select(-c(estimate, p.value))
   
   st_write(tempDataadm2_wTrend,
-           paste0('results/polyg_adm2_gdp_perCapita_',inYears[1],'_',inYears[length(inYears)],'.gpkg'), 
+           paste0('results/',as.name(nameFile),inYears[1],'_',inYears[length(inYears)],'.gpkg'), 
            delete_dsn=T)
   
   # only csv
@@ -86,13 +90,14 @@ f_gdp_data2gpkg_adm2 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     st_drop_geometry() %>% 
     select(-geom)
   
-  write_csv(tempDataadm2_wTrend %>% st_drop_geometry(), "results/tabulated_adm2_gdp_perCapita.csv")
+  write_csv(tempDataadm2_wTrend %>% st_drop_geometry(), 
+            paste0('results/',as.name(nameFile),inYears[1],'_',inYears[length(inYears)],'.csv'))
   
   # slope to raster
   
   
   # check adm0 areas for which we do not have data, and put those to NA in the raster
-  idNoData <- tempDataAdm2 %>% 
+  idNoData <- tempDataAdm2_harm %>% 
     as_tibble() %>% 
     filter(is.na(gdp_pc)) %>% 
     dplyr::select(adm2ID)

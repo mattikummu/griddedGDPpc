@@ -18,11 +18,15 @@ f_interp_adm1 <- function(variableName = 'gdp') {
   temp <- adm1_data_gdp_ratio %>% 
     filter(is.na(GID_nmbr))
   
-  # interpolate ratio
-  adm1_data_SHDI_interpRatio <- adm1_data_gdp_ratio %>% 
+  adm1_data_wider <- adm1_data_gdp_ratio %>% 
     select(iso3, GID_nmbr, year, ratioAdm1Adm0) %>% 
     # make sure that all years are included
-    pivot_wider(names_from = 'year', values_from = 'ratioAdm1Adm0') %>% 
+    pivot_wider(names_from = 'year', values_from = 'ratioAdm1Adm0')
+  
+  write_csv(adm1_data_wider, 'results/subnat_data_combined_ratio_reportedOnly.csv')
+  
+  # interpolate ratio
+  adm1_data_SHDI_interpRatio <- adm1_data_wider %>% 
     pivot_longer(-c(iso3, GID_nmbr), names_to = 'year', values_to = 'ratioAdm1Adm0') %>% 
     # interpolate
     group_by(GID_nmbr) %>% 

@@ -11,7 +11,9 @@ f_gdp_data2gpkg_adm0 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     dplyr::select(c(!!IndexName,year, cntry_id, GID_nmbr, iso3)) %>%
     #mutate(!!as.name(IndexName) := round(!!as.name(IndexName))) %>% 
     pivot_wider(names_from = year, values_from = !!IndexName) %>% 
-    pivot_longer(-c(cntry_id,GID_nmbr, iso3), names_to = 'year', values_to = 'gdp_pc') 
+    pivot_longer(-c(cntry_id,GID_nmbr, iso3), names_to = 'year', values_to = 'gdp_pc')  %>% 
+    distinct(GID_nmbr, year, .keep_all = T) %>% 
+    filter(!is.na(iso3))
   # drop_na()
   
   
@@ -54,7 +56,8 @@ f_gdp_data2gpkg_adm0 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
     right_join(gdp_adm0_polyg_simpl) %>% 
     left_join(gdp_adm0_polyg_noGeom) %>% 
     select(GID_nmbr, iso3,  Country, slope, everything()) %>% 
-    select(-c(estimate, p.value))
+    select(-c(estimate, p.value)) %>% 
+    filter(!is.na(iso3))
   
   
   
@@ -73,20 +76,34 @@ f_gdp_data2gpkg_adm0 <- function(inYears = 1990:2022, IndexName = 'gdp_pc',
   idNoData <- adm0_polyg_final %>% 
     st_drop_geometry() %>% 
     select(GID_nmbr) %>% 
-    filter(!GID_nmbr %in% unique(tempDataAdm0$GID_nmbr)) %>% 
+    filter(!GID_nmbr %in% unique(tempDataAdm0$GID_nmbr))# %>% 
     # ## REMOVE WST SAHARA as data exist from subnational ata
     # filter(!GID_nmbr == 912) %>% 
-    drop_na()
+    #drop_na()
   
   r_gdp_adm0_polyg_5arcmin[r_gdp_adm0_polyg_5arcmin %in% as.numeric(as.matrix(idNoData))] <- NA
   
-  temp_id <-  as.numeric(tempDataAdm0_trend_mblm$GID_nmbr)
-  temp_v <- as.numeric(tempDataAdm0_trend_mblm$estimate)
+  # temp_id <-  as.numeric(tempDataAdm0_trend_mblm$GID_nmbr)
+  # temp_v <- as.numeric(tempDataAdm0_trend_mblm$estimate)
+  # 
+  # # reclassify
+  # slope_raster <- classify(r_gdp_adm0_polyg_5arcmin,
+  #                          cbind(temp_id, temp_v))
+  # 
+  # names(slope_raster) <- paste0(IndexName,'_slope_',inYears[1],'_',inYears[length(inYears)] )
   
-  # reclassify
-  slope_raster <- classify(r_gdp_adm0_polyg_5arcmin,
-                           cbind(temp_id, temp_v))
   
+  ### slope to raster
+  
+  v_adm2_final <- vect(tempDataAdm0_wTrend %>% st_as_sf())
+  
+  # rasterise
+  slope_raster_1arcmin <- terra::rasterize(v_adm2_final, rast(ncol=360*60, nrow=180*60), field='slope')
+  
+  # aggregate to 5 arc-min
+  slope_raster <- terra::aggregate(slope_raster_1arcmin,fact=5,fun=modal,na.rm=T)
+  
+  inYears = 2000:2020
   names(slope_raster) <- paste0(IndexName,'_slope_',inYears[1],'_',inYears[length(inYears)] )
   
   
